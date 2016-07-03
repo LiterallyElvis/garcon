@@ -1,0 +1,22 @@
+[
+    {
+        "trigger": {
+            "text": "oh, garçon?",
+            "regex": false
+        },
+        "response": {
+            "text": "Hi, @<user>! May I take your order?",
+            "reply": true
+        }
+    },
+    {
+        "trigger": {
+            "text": "(we'd|we would) (like to order from) (.*)",
+            "regex": "true"
+        },
+        "response": {
+            "text": "Hi, @<user>! May I take your order?",
+            "reply": true
+        }
+    }
+]
