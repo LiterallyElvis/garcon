@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/literallyelvis/slacker"
+	"github.com/nlopes/slack"
 	"log"
 	"strings"
 )
@@ -13,9 +13,9 @@ type Garcon struct {
 	Stage            string
 	InterlocutorID   string
 	Order            *Order
-	Patrons          map[string]slacker.SlackUser
-	MessageTypeFuncs map[string]func(slacker.SlackMessage) (string, error)
-	ReactionFuncs    map[string]map[string]func(slacker.SlackMessage) []slacker.SlackMessage
+	Patrons          map[string]slack.User
+	MessageTypeFuncs map[string]func(slack.Msg) (string, error)
+	ReactionFuncs    map[string]map[string]func(slack.Msg) []slack.OutgoingMessage
 }
 
 // Reset wipes the state of Garcon
@@ -31,8 +31,7 @@ func (g Garcon) CancellationCommandIssued(m string) (abortCommandIssued bool) {
 	if stringFitsPattern("(<@\\w+>, abort)", m) {
 		match, _ := findElementsInString("(<@(?P<user>\\w+)>, abort)", "user", "<@U1N3QR9F1>, abort")
 		if _, ok := g.Patrons[match]; ok {
-			log.Printf("g.Patrons[match]: %v\n", g.Patrons[match].Username)
-			if strings.ToLower(g.Patrons[match].Username) == "garcon" {
+			if strings.ToLower(g.Patrons[match].Name) == "garcon" {
 				log.Println("strings.ToLower(g.Patrons[match].Username) == \"garcon\"")
 				abortCommandIssued = true
 			}
@@ -54,8 +53,8 @@ func NewGarcon() *Garcon {
 	g.Stage = "uninitiated"
 
 	// possible returns: affirmative, negative, additive, cancelling, irrelevant, indeterminable
-	g.MessageTypeFuncs = map[string]func(slacker.SlackMessage) (string, error){
-		"uninitiated": func(m slacker.SlackMessage) (string, error) {
+	g.MessageTypeFuncs = map[string]func(slack.Msg) (string, error){
+		"uninitiated": func(m slack.Msg) (string, error) {
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
@@ -64,7 +63,7 @@ func NewGarcon() *Garcon {
 			}
 			return "irrelevant", nil
 		},
-		"prompted": func(m slacker.SlackMessage) (string, error) {
+		"prompted": func(m slack.Msg) (string, error) {
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
@@ -81,13 +80,13 @@ func NewGarcon() *Garcon {
 			}
 			return "indeterminable", nil
 		},
-		"ordering": func(m slacker.SlackMessage) (string, error) {
+		"ordering": func(m slack.Msg) (string, error) {
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
 			return "indeterminable", nil
 		},
-		"confirmation": func(m slacker.SlackMessage) (string, error) {
+		"confirmation": func(m slack.Msg) (string, error) {
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
@@ -95,31 +94,31 @@ func NewGarcon() *Garcon {
 		},
 	}
 
-	genericCancelReponse := func(m slacker.SlackMessage) []slacker.SlackMessage {
+	genericCancelReponse := func(m slack.Msg) []slack.OutgoingMessage {
 		g.Reset()
 		t := "Very well then, I'll disappear for now!"
-		return []slacker.SlackMessage{slacker.SlackMessage{Channel: m.Channel, Text: t}}
+		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 	}
 
-	genericHelpResponse := func(m slacker.SlackMessage, ec []string) []slacker.SlackMessage {
-		t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:\n%v\n", g.Patrons[m.User], strings.Join(ec, "\n"))
-		return []slacker.SlackMessage{slacker.SlackMessage{Channel: m.Channel, Text: t}}
+	genericHelpResponse := func(m slack.Msg, examples []string) []slack.OutgoingMessage {
+		t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:\n%v\n", g.Patrons[m.User], strings.Join(examples, "\n"))
+		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 	}
 
-	g.ReactionFuncs = map[string]map[string]func(slacker.SlackMessage) []slacker.SlackMessage{
-		"uninitiated": map[string]func(m slacker.SlackMessage) []slacker.SlackMessage{
-			"affirmative": func(m slacker.SlackMessage) []slacker.SlackMessage {
-				t := fmt.Sprintf("Hi, @%v! Would you like to place an order?", g.Patrons[m.User].Username)
+	g.ReactionFuncs = map[string]map[string]func(slack.Msg) []slack.OutgoingMessage{
+		"uninitiated": map[string]func(m slack.Msg) []slack.OutgoingMessage{
+			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
+				t := fmt.Sprintf("Hi, @%v! Would you like to place an order?", g.Patrons[m.User].Name)
 				g.InterlocutorID = m.User
 				g.Stage = "prompted"
 
-				return []slacker.SlackMessage{
-					slacker.SlackMessage{Channel: "C1N3MEUMN", Text: t},
+				return []slack.OutgoingMessage{
+					slack.OutgoingMessage{Channel: "C1N3MEUMN", Text: t},
 				}
 			},
 		},
-		"prompted": map[string]func(m slacker.SlackMessage) []slacker.SlackMessage{
-			"affirmative": func(m slacker.SlackMessage) []slacker.SlackMessage {
+		"prompted": map[string]func(m slack.Msg) []slack.OutgoingMessage{
+			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
 				exampleResponses := []string{
 					"We'd like to place an order from the Chili's at 45th & Lamar",
 					"We would like to order from the Chili's at 45th & Lamar",
@@ -129,14 +128,14 @@ func NewGarcon() *Garcon {
 					return genericHelpResponse(m, exampleResponses)
 				}
 				t := fmt.Sprintf("Okay, what would you like from %v?", restaurant)
-				return []slacker.SlackMessage{slacker.SlackMessage{Channel: m.Channel, Text: t}}
+				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 			},
 			"cancelling": genericCancelReponse,
 		},
-		"ordering": map[string]func(m slacker.SlackMessage) []slacker.SlackMessage{
+		"ordering": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"cancelling": genericCancelReponse,
 		},
-		"confirmation": map[string]func(m slacker.SlackMessage) []slacker.SlackMessage{
+		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"cancelling": genericCancelReponse,
 		},
 	}
