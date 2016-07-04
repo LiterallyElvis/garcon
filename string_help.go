@@ -1,21 +1,26 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
 
-func findElementsInString() {
-	re := regexp.MustCompile("(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)")
+func findElementsInString(p, e string) (string, error) {
+	// "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
+	re := regexp.MustCompile(p)
 
 	n1 := re.SubexpNames()
 	r2 := re.FindAllStringSubmatch("we would like to order chili's", -1)[0]
 
-	md := map[string]string{}
+	matches := map[string]string{}
 	for i, n := range r2 {
-		md[n1[i]] = n
+		matches[n1[i]] = n
 	}
-	// fmt.Printf("The restauraunt is %s\n", md["restaurant"])
+	if _, ok := matches[e]; ok {
+		return matches[e], nil
+	}
+	return "", fmt.Errorf("No match found for %v", e)
 }
 
 func stringInArray(s string, a []string) bool {
