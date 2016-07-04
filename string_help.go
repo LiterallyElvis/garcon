@@ -6,15 +6,23 @@ import (
 	"strings"
 )
 
-func findElementsInString(p, e string) (string, error) {
-	// "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
+func stringFitsPattern(p, s string) bool {
 	re := regexp.MustCompile(p)
+	return re.Match([]byte(s))
+}
+
+func findElementsInString(p, e, m string) (string, error) {
+	re := regexp.MustCompile(fmt.Sprintf("(?i)%v", p))
 
 	n1 := re.SubexpNames()
-	r2 := re.FindAllStringSubmatch("we would like to order chili's", -1)[0]
+	r2 := re.FindAllStringSubmatch(m, -1)
+	if len(r2) == 0 {
+		return "", fmt.Errorf("No string submatches found for %v", e)
+	}
+	r3 := r2[0]
 
 	matches := map[string]string{}
-	for i, n := range r2 {
+	for i, n := range r3 {
 		matches[n1[i]] = n
 	}
 	if _, ok := matches[e]; ok {
@@ -25,7 +33,7 @@ func findElementsInString(p, e string) (string, error) {
 
 func stringInArray(s string, a []string) bool {
 	for _, x := range a {
-		if strings.ToLower(s) == x {
+		if cleanString(s) == x {
 			return true
 		}
 	}
