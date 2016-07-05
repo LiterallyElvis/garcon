@@ -8,35 +8,51 @@ import (
 )
 
 const (
-	orderInitiationPattern = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
+	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
+	abortCommandPattern             = "(<@(?P<user>\\w+)>(:|,)? abort)"
+	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)? ((I would|I'd) like|I'll have) (?P<item>.*))"
+	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)? (what does|what's) our order look like( so far)??)"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
 type Garcon struct {
-	debug            bool
-	Stage            string
-	InterlocutorID   string
-	Order            *Order
-	Patrons          map[string]slack.User
-	MessageTypeFuncs map[string]func(slack.Msg) (string, error)
-	ReactionFuncs    map[string]map[string]func(slack.Msg) []slack.OutgoingMessage
+	debug                bool
+	SelfName             string
+	SelfID               string
+	Stage                string
+	InterlocutorID       string
+	RequestedRestauraunt string
+	Order                map[string]string
+	Patrons              map[string]slack.User
+	MessageTypeFuncs     map[string]func(slack.Msg) (string, error)
+	ReactionFuncs        map[string]map[string]func(slack.Msg) []slack.OutgoingMessage
+	CommandExamples      map[string][]string
+}
+
+// FindBotSlackID TODO: document
+func (g *Garcon) FindBotSlackID() {
+	for id, p := range g.Patrons {
+		if strings.ToLower(p.Name) == strings.ToLower(g.SelfName) {
+			g.SelfID = id
+		}
+	}
 }
 
 // Reset wipes the state of Garcon
 func (g *Garcon) Reset() {
 	g.Stage = "uninitiated"
-	g.Order = NewOrder()
+	g.Order = make(map[string]string)
 }
 
 // CancellationCommandIssued returns whether or not the most recent command is a show-stopping
 // cancellation command directed at Garcon
 func (g Garcon) CancellationCommandIssued(m string) (abortCommandIssued bool) {
-	if stringFitsPattern("(<@\\w+>, abort)", m) {
-		match, _ := findElementsInString("(<@(?P<user>\\w+)>, abort)", []string{"user"}, m)
+	// if stringFitsPattern("(<@\\w+>, abort)", m) {
+	if stringFitsPattern(abortCommandPattern, m) {
+		match, _ := findElementsInString(abortCommandPattern, []string{"user"}, m)
 		user := match["user"]
 		if _, ok := g.Patrons[user]; ok {
 			if strings.ToLower(g.Patrons[user].Name) == "garcon" {
-				log.Println("strings.ToLower(g.Patrons[match].Username) == \"garcon\"")
 				abortCommandIssued = true
 			}
 		}
@@ -50,20 +66,49 @@ func (g Garcon) CancellationCommandIssued(m string) (abortCommandIssued bool) {
 
 // ItemAddedToOrder TODO: Document
 func (g Garcon) ItemAddedToOrder(m string) (itemAdded bool) {
-	if stringFitsPattern("(<@\\w+>, I would like .*)", m) {
-		matches, _ := findElementsInString("(<@(?P<user>\\w+)>, I would like (?P<item>.*))", []string{"user", "item"}, m)
-		if _, ok := g.Patrons[matches["user"]]; ok {
-			if strings.ToLower(g.Patrons[matches["user"]].Name) == "garcon" && len(matches["item"]) > 0 {
-				log.Println("strings.ToLower(g.Patrons[match].Username) == \"garcon\"")
+	if stringFitsPattern(orderPlacingPattern, m) {
+		matches, _ := findElementsInString(orderPlacingPattern, []string{"user", "item"}, m)
+		user := matches["user"]
+		if _, ok := g.Patrons[user]; ok {
+			if strings.ToLower(g.Patrons[user].Name) == "garcon" && len(matches["item"]) > 0 {
 				itemAdded = true
 			}
 		}
 	}
 
 	if g.debug {
-		log.Printf("Checked if message received was an order command. Returning %v\n", itemAdded)
+		log.Printf("Checked if message received was to add an item to the order. Returning %v\n", itemAdded)
 	}
 	return
+}
+
+// OrderStatusCheckRequested TODO: Document
+func (g Garcon) OrderStatusCheckRequested(m string) (requested bool) {
+	if stringFitsPattern(orderConfirmationRequestPattern, m) {
+		requested = true
+	}
+
+	if g.debug {
+		log.Printf("Checked if message received was an order status reequest. Returning %v\n", requested)
+	}
+	return
+}
+
+// ReadyToPlaceOrder TODO: Document
+func (g Garcon) ReadyToPlaceOrder(m string) (ready bool) {
+	if stringFitsPattern(orderConfirmationRequestPattern, m) {
+		ready = true
+	}
+
+	if g.debug {
+		log.Printf("Checked if message received was an order status reequest. Returning %v\n", ready)
+	}
+	return
+}
+
+// HelpRequested TODO: Document
+func (g Garcon) HelpRequested(m string) (helpRequested bool) {
+	return strings.ToLower(m) == "@garcon, help me!"
 }
 
 // NewGarcon constructs a new instance of Garcon and establishes all the behavior functions
@@ -72,7 +117,26 @@ func (g Garcon) ItemAddedToOrder(m string) (itemAdded bool) {
 // the code either hilariously unreadable, complicated, and most likely both
 func NewGarcon() *Garcon {
 	g := &Garcon{}
-	g.Stage = "uninitiated"
+	g.SelfName = "garcon"
+	g.Reset()
+
+	g.Stage = "ordering"
+
+	g.CommandExamples = map[string][]string{
+		"uninitiated": []string{
+			"oh, garçon?",
+		},
+		"prompted": []string{
+			"We'd like to place an order from the Chili's at 45th & Lamar",
+			"We would like to order from the Chili's at 45th & Lamar",
+		},
+		"ordering": []string{
+			"@garcon, I'd like a banana",
+			"@garcon I'll have the tuna melt",
+			"@garcon, what's our order look like so far?",
+		},
+		"confirmed": []string{},
+	}
 
 	// possible returns: affirmative, negative, additive, cancelling, irrelevant, indeterminable
 	g.MessageTypeFuncs = map[string]func(slack.Msg) (string, error){
@@ -104,11 +168,19 @@ func NewGarcon() *Garcon {
 			return "indeterminable", nil
 		},
 		"ordering": func(m slack.Msg) (string, error) {
+			log.Printf("ordering, determining message type of %v", m.Text)
+
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
+			if g.HelpRequested(m.Text) {
+				return "inquisitive", nil
+			}
 			if g.ItemAddedToOrder(m.Text) {
-				return "affirmative", nil
+				return "contributing", nil
+			}
+			if g.OrderStatusCheckRequested(m.Text) {
+				return "status", nil
 			}
 			return "indeterminable", nil
 		},
@@ -126,10 +198,28 @@ func NewGarcon() *Garcon {
 		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 	}
 
-	genericHelpResponse := func(m slack.Msg, examples []string) []slack.OutgoingMessage {
+	suggestHelpCommandResponse := func(m slack.Msg) []slack.OutgoingMessage {
+		t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. For help, say \"@garcon, help me!\"", g.Patrons[m.User].Name)
+		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+	}
+
+	genericHelpResponse := func(m slack.Msg) []slack.OutgoingMessage {
 		s := "\n • "
+		examples := g.CommandExamples[g.Stage]
 		t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:%v%v\n", g.Patrons[m.User].Name, s, strings.Join(examples, s))
 		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+	}
+
+	orderStatusResponse := func(m slack.Msg) []slack.OutgoingMessage {
+		// TODO: Make this a more generic function
+		orders := ""
+		for u, o := range g.Order {
+			log.Printf("iterating over orders, processing\n\t user: %v\n\torder: %v\n", u, o)
+			orders = fmt.Sprintf("%v%v: %v\n", orders, strings.Title(u), o)
+		}
+		statusTemplate := "Here's what I have for your order:\n```\n%v\n```"
+		statusMessage := fmt.Sprintf(statusTemplate, orders)
+		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: statusMessage}}
 	}
 
 	g.ReactionFuncs = map[string]map[string]func(slack.Msg) []slack.OutgoingMessage{
@@ -146,28 +236,45 @@ func NewGarcon() *Garcon {
 		},
 		"prompted": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				exampleResponses := []string{
-					"We'd like to place an order from the Chili's at 45th & Lamar",
-					"We would like to order from the Chili's at 45th & Lamar",
-				}
 				match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
 				restaurant := match["restaurant"]
 
 				if err != nil || len(restaurant) == 0 {
-					return genericHelpResponse(m, exampleResponses)
+					return suggestHelpCommandResponse(m)
 				}
 				t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
 				g.Stage = "ordering"
+				g.RequestedRestauraunt = restaurant
 				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 			},
-			"cancelling": genericCancelReponse,
+			"inquisitive": genericHelpResponse,
+			"cancelling":  genericCancelReponse,
 		},
 		"ordering": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				t := fmt.Sprintf("Okay %v, I've got your order.", g.Patrons[m.User].Name)
-				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+				g.Stage = "confirmation"
+
+				return []slack.OutgoingMessage{
+					slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then"},
+					orderStatusResponse(m)[0],
+				}
 			},
-			"cancelling": genericCancelReponse,
+			"contributing": func(m slack.Msg) []slack.OutgoingMessage {
+				matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
+				item := matches["item"]
+
+				if err != nil || len(item) == 0 {
+					return genericHelpResponse(m)
+				}
+
+				g.Order[g.Patrons[m.User].Name] = item
+				// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
+				// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+				return []slack.OutgoingMessage{slack.OutgoingMessage{}}
+			},
+			"inquisitive": genericHelpResponse,
+			"cancelling":  genericCancelReponse,
+			"status":      orderStatusResponse,
 		},
 		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"cancelling": genericCancelReponse,

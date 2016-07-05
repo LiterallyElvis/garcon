@@ -31,6 +31,10 @@ func findElementsInString(p string, e []string, m string) (map[string]string, er
 			returnMatches[el] = matches[el]
 		}
 	}
+	if len(returnMatches) > 0 {
+		return returnMatches, nil
+	}
+
 	return nil, fmt.Errorf("No match found for %v", e)
 }
 

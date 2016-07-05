@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-// Testing creation of the header to index map
 func TestStringCleaning(t *testing.T) {
 	badStrings := map[string]string{
 		"Whoa!":            "whoa",
@@ -29,25 +28,47 @@ func TestMatchesPattern(t *testing.T) {
 	}
 }
 
-// Testing creation of the header to index map
-func TestStringElementFinding(t *testing.T) {
-	matches, err := findElementsInString("(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)", []string{"restaurant"}, "We'd like to place an order from the Chili's at 45th & Lamar")
+func TestRestaurantFinding(t *testing.T) {
+	restaurantMatches, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, "We'd like to place an order from the Chili's at 45th & Lamar")
+	expectedRestaurant := "the Chili's at 45th & Lamar"
+	actualRestaurant := restaurantMatches["restaurant"]
 
 	if err != nil {
 		t.Errorf("Unexpected error encountered when trying to find elements in string:\n%v\n", err)
 	}
-	if matches["restaurant"] != "the Chili's at 45th & Lamar" {
-		t.Errorf("expected matched string to equal \"the Chili's on 45th & Lamar\", instead equaled \"%v\"", matches["restaurant"])
+	if actualRestaurant != expectedRestaurant {
+		t.Errorf("expected matched string to equal %v, instead equaled \"%v\"", expectedRestaurant, actualRestaurant)
 	}
+}
 
-	matches, _ = findElementsInString("(<@(?P<user>\\w+)>, I would like (?P<item>.*))", []string{"user", "item"}, "<@U1N3QR9F1>, I would like a thing")
+func TestOrderPlacementFinding(t *testing.T) {
+	userOrderMatches, err := findElementsInString(orderPlacingPattern, []string{"user", "item"}, "<@U1N3QR9F1>, I would like a thing")
+	expectedUser := "U1N3QR9F1"
+	actualUser := userOrderMatches["user"]
+	expectedItem := "a thing"
+	actualItem := userOrderMatches["item"]
 	if err != nil {
 		t.Errorf("Unexpected error encountered when trying to find elements in string:\n%v\n", err)
 	}
-	if matches["user"] != "U1N3QR9F1" {
-		t.Errorf("expected matched string to equal \"U1N3QR9F1\", instead equaled \"%v\"", matches["user"])
+	if expectedUser != actualUser {
+		t.Errorf("expected matched string to equal %v, instead equaled \"%v\"", expectedUser, actualUser)
 	}
-	if matches["item"] != "thing" {
-		t.Errorf("expected matched string to equal \"thing\", instead equaled \"%v\"", matches["item"])
+	if expectedItem != actualItem {
+		t.Errorf("expected matched string to equal %v, instead equaled \"%v\"", expectedItem, actualItem)
+	}
+
+	userOrderMatches, err = findElementsInString(orderPlacingPattern, []string{"user", "item"}, "<@U1N3QR9F1> I'll have the tuna melt")
+	expectedUser = "U1N3QR9F1"
+	actualUser = userOrderMatches["user"]
+	expectedItem = "the tuna melt"
+	actualItem = userOrderMatches["item"]
+	if err != nil {
+		t.Errorf("Unexpected error encountered when trying to find elements in string:\n%v\n", err)
+	}
+	if expectedUser != actualUser {
+		t.Errorf("expected matched string to equal %v, instead equaled \"%v\"", expectedUser, actualUser)
+	}
+	if expectedItem != actualItem {
+		t.Errorf("expected matched string to equal %v, instead equaled \"%v\"", expectedItem, actualItem)
 	}
 }
