@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+const (
+	orderInitiationPattern = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
+)
+
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
 type Garcon struct {
 	debug            bool
@@ -27,11 +31,11 @@ func (g *Garcon) Reset() {
 // CancellationCommandIssued returns whether or not the most recent command is a show-stopping
 // cancellation command directed at Garcon
 func (g Garcon) CancellationCommandIssued(m string) (abortCommandIssued bool) {
-	log.Printf("CancellationCommandIssued called against %v\n", m)
 	if stringFitsPattern("(<@\\w+>, abort)", m) {
-		match, _ := findElementsInString("(<@(?P<user>\\w+)>, abort)", "user", "<@U1N3QR9F1>, abort")
-		if _, ok := g.Patrons[match]; ok {
-			if strings.ToLower(g.Patrons[match].Name) == "garcon" {
+		match, _ := findElementsInString("(<@(?P<user>\\w+)>, abort)", []string{"user"}, m)
+		user := match["user"]
+		if _, ok := g.Patrons[user]; ok {
+			if strings.ToLower(g.Patrons[user].Name) == "garcon" {
 				log.Println("strings.ToLower(g.Patrons[match].Username) == \"garcon\"")
 				abortCommandIssued = true
 			}
@@ -42,6 +46,24 @@ func (g Garcon) CancellationCommandIssued(m string) (abortCommandIssued bool) {
 		log.Printf("Checked if message received was cancellation command. Returning %v\n", abortCommandIssued)
 	}
 	return abortCommandIssued
+}
+
+// ItemAddedToOrder TODO: Document
+func (g Garcon) ItemAddedToOrder(m string) (itemAdded bool) {
+	if stringFitsPattern("(<@\\w+>, I would like .*)", m) {
+		matches, _ := findElementsInString("(<@(?P<user>\\w+)>, I would like (?P<item>.*))", []string{"user", "item"}, m)
+		if _, ok := g.Patrons[matches["user"]]; ok {
+			if strings.ToLower(g.Patrons[matches["user"]].Name) == "garcon" && len(matches["item"]) > 0 {
+				log.Println("strings.ToLower(g.Patrons[match].Username) == \"garcon\"")
+				itemAdded = true
+			}
+		}
+	}
+
+	if g.debug {
+		log.Printf("Checked if message received was an order command. Returning %v\n", itemAdded)
+	}
+	return
 }
 
 // NewGarcon constructs a new instance of Garcon and establishes all the behavior functions
@@ -58,7 +80,7 @@ func NewGarcon() *Garcon {
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
-			if strings.ToLower(m.Text) == "oh, garçon?" {
+			if strings.ToLower(m.Text) == "oh, garçon?" || strings.ToLower(m.Text) == "oh, @garcon?" {
 				return "affirmative", nil
 			}
 			return "irrelevant", nil
@@ -71,11 +93,12 @@ func NewGarcon() *Garcon {
 			if negative || m.User != g.InterlocutorID {
 				return "negative", nil
 			}
-			restaurant, err := findElementsInString("(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)", "restauraunt", m.Text)
+			match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
+			restaurant := match["restaurant"]
 			if err != nil {
 				return "indeterminable", err
 			}
-			if restaurant != "" {
+			if len(restaurant) > 0 {
 				return "affirmative", nil
 			}
 			return "indeterminable", nil
@@ -83,6 +106,9 @@ func NewGarcon() *Garcon {
 		"ordering": func(m slack.Msg) (string, error) {
 			if g.CancellationCommandIssued(m.Text) {
 				return "cancelling", nil
+			}
+			if g.ItemAddedToOrder(m.Text) {
+				return "affirmative", nil
 			}
 			return "indeterminable", nil
 		},
@@ -101,7 +127,8 @@ func NewGarcon() *Garcon {
 	}
 
 	genericHelpResponse := func(m slack.Msg, examples []string) []slack.OutgoingMessage {
-		t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:\n%v\n", g.Patrons[m.User], strings.Join(examples, "\n"))
+		s := "\n • "
+		t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:%v%v\n", g.Patrons[m.User].Name, s, strings.Join(examples, s))
 		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 	}
 
@@ -123,16 +150,23 @@ func NewGarcon() *Garcon {
 					"We'd like to place an order from the Chili's at 45th & Lamar",
 					"We would like to order from the Chili's at 45th & Lamar",
 				}
-				restaurant, err := findElementsInString("(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)", "restauraunt", m.Text)
+				match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
+				restaurant := match["restaurant"]
+
 				if err != nil || len(restaurant) == 0 {
 					return genericHelpResponse(m, exampleResponses)
 				}
-				t := fmt.Sprintf("Okay, what would you like from %v?", restaurant)
+				t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
+				g.Stage = "ordering"
 				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 			},
 			"cancelling": genericCancelReponse,
 		},
 		"ordering": map[string]func(m slack.Msg) []slack.OutgoingMessage{
+			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
+				t := fmt.Sprintf("Okay %v, I've got your order.", g.Patrons[m.User].Name)
+				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+			},
 			"cancelling": genericCancelReponse,
 		},
 		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{

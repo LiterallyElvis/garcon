@@ -11,13 +11,13 @@ func stringFitsPattern(p, s string) bool {
 	return re.Match([]byte(s))
 }
 
-func findElementsInString(p, e, m string) (string, error) {
+func findElementsInString(p string, e []string, m string) (map[string]string, error) {
 	re := regexp.MustCompile(fmt.Sprintf("(?i)%v", p))
 
 	n1 := re.SubexpNames()
 	r2 := re.FindAllStringSubmatch(m, -1)
 	if len(r2) == 0 {
-		return "", fmt.Errorf("No string submatches found for %v", e)
+		return nil, fmt.Errorf("No string submatches found for %v", e)
 	}
 	r3 := r2[0]
 
@@ -25,10 +25,13 @@ func findElementsInString(p, e, m string) (string, error) {
 	for i, n := range r3 {
 		matches[n1[i]] = n
 	}
-	if _, ok := matches[e]; ok {
-		return matches[e], nil
+	returnMatches := map[string]string{}
+	for _, el := range e {
+		if _, ok := matches[el]; ok {
+			returnMatches[el] = matches[el]
+		}
 	}
-	return "", fmt.Errorf("No match found for %v", e)
+	return nil, fmt.Errorf("No match found for %v", e)
 }
 
 func stringInArray(s string, a []string) bool {
@@ -41,7 +44,7 @@ func stringInArray(s string, a []string) bool {
 }
 
 func responseIsAffirmative(response string) bool {
-	affirmatives := []string{"yes", "yup", "yep", "sure", "ok"}
+	affirmatives := []string{"yes", "yup", "yep", "sure", "ok", "si", "oui"}
 	return stringInArray(response, affirmatives)
 }
 
