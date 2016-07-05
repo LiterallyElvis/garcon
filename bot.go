@@ -2,17 +2,16 @@ package main
 
 import (
 	"fmt"
+	"github.com/literallyelvis/solid"
+	"github.com/nlopes/slack"
 	"log"
 	"os"
-
-	"github.com/nlopes/slack"
 )
 
 var g *Garcon
 var sb *slack.Client
 
 func init() {
-	// log.Printf("starting Garcon with the following key: %v\n", os.Getenv("GARCON_TOKEN"))
 	sb = slack.New(os.Getenv("GARCON_TOKEN"))
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
 	slack.SetLogger(logger)
@@ -27,6 +26,11 @@ func init() {
 	}
 	g.Patrons = makeIDToUserMap(users)
 	g.FindBotSlackID()
+	c, err := solid.New(os.Getenv("FAVOR_TOKEN"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	g.FavorClient = c
 }
 
 func makeIDToUserMap(in []slack.User) map[string]slack.User {
@@ -42,10 +46,18 @@ func handleMessage(m slack.Msg) {
 		status := `
 			Stage:          %v
 			InterlocutorID: %v
+
 		`
 		log.Printf(status, g.Stage, g.InterlocutorID)
+		messageString := `
+			Channel: %v
+			User:    %v
+			Text:    %v
+
+		`
+		log.Printf(messageString, m.Channel, m.User, m.Text)
 	}
-	if m.User == g.SelfID {
+	if m.User == g.SelfID || len(m.User) == 0 {
 		return
 	}
 

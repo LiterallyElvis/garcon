@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/literallyelvis/solid"
 	"github.com/nlopes/slack"
 	"log"
 	"strings"
@@ -11,7 +12,8 @@ const (
 	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
 	abortCommandPattern             = "(<@(?P<user>\\w+)>(:|,)? abort)"
 	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)? ((I would|I'd) like|I'll have) (?P<item>.*))"
-	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)? (what does|what's) our order look like( so far)??)"
+	orderStatusRequestPattern       = "(<@(?P<user>\\w+)>(:|,)? (what does|what's) our order look like( so far)??)"
+	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)? you can place our order now(.*))"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
@@ -22,6 +24,8 @@ type Garcon struct {
 	Stage                string
 	InterlocutorID       string
 	RequestedRestauraunt string
+	FavorClient          *solid.Client
+	FavorOrder           solid.Favor
 	Order                map[string]string
 	Patrons              map[string]slack.User
 	MessageTypeFuncs     map[string]func(slack.Msg) (string, error)
@@ -84,7 +88,7 @@ func (g Garcon) itemAddedToOrder(m string) (itemAdded bool) {
 
 // OrderStatusCheckRequested TODO: Document
 func (g Garcon) orderStatusCheckRequested(m string) (requested bool) {
-	if stringFitsPattern(orderConfirmationRequestPattern, m) {
+	if stringFitsPattern(orderStatusRequestPattern, m) {
 		requested = true
 	}
 
@@ -127,9 +131,9 @@ func (g Garcon) orderStatusResponse(m slack.Msg) []slack.OutgoingMessage {
 	// TODO: Make this a more generic function
 	orders := ""
 	for u, o := range g.Order {
-		log.Printf("iterating over orders, processing\n\t user: %v\n\torder: %v\n", u, o)
 		orders = fmt.Sprintf("%v%v: %v\n", orders, strings.Title(u), o)
 	}
+	orders = strings.TrimSpace(orders)
 	statusTemplate := "Here's what I have for your order:\n```\n%v\n```"
 	statusMessage := fmt.Sprintf(statusTemplate, orders)
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: statusMessage}}
@@ -149,8 +153,6 @@ func NewGarcon() *Garcon {
 	g := &Garcon{}
 	g.SelfName = "garcon"
 	g.Reset()
-
-	g.Stage = "ordering"
 
 	g.CommandExamples = map[string][]string{
 		"uninitiated": []string{
@@ -256,6 +258,7 @@ func NewGarcon() *Garcon {
 				t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
 				g.Stage = "ordering"
 				g.RequestedRestauraunt = restaurant
+
 				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 			},
 			"inquisitive": g.genericHelpResponse,
@@ -290,7 +293,8 @@ func NewGarcon() *Garcon {
 		},
 		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				return []slack.OutgoingMessage{slack.OutgoingMessage{}}
+				t := "Okay, I'll send this order off!"
+				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 			},
 			"cancelling":     g.genericCancelReponse,
 			"inquisitive":    g.genericHelpResponse,
