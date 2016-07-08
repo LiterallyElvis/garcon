@@ -10,10 +10,11 @@ import (
 
 const (
 	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
-	abortCommandPattern             = "(<@(?P<user>\\w+)>(:|,)? abort)"
-	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)? ((I would|I'd) like|I'll have) (?P<item>.*))"
-	orderStatusRequestPattern       = "(<@(?P<user>\\w+)>(:|,)? (what does|what's) our order look like( so far)??)"
-	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)? you can place our order now(.*))"
+	abortCommandPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(abort|go away|leave|shut up))"
+	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
+	orderStatusRequestPattern       = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
+	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)?(\\s+)you can place our order now(.*))"
+	altOrderConfirmationPattern     = "(<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
@@ -48,10 +49,9 @@ func (g *Garcon) Reset() {
 	g.Order = make(map[string]string)
 }
 
-// CancellationCommandIssued returns whether or not the most recent command is a show-stopping
-// cancellation command directed at Garcon
+// CancellationCommandIssued returns whether or not the most recent command
+// is a show-stopping cancellation command directed at Garcon
 func (g Garcon) cancellationCommandIssued(m string) (abortCommandIssued bool) {
-	// if stringFitsPattern("(<@\\w+>, abort)", m) {
 	if stringFitsPattern(abortCommandPattern, m) {
 		match, _ := findElementsInString(abortCommandPattern, []string{"user"}, m)
 		user := match["user"]
@@ -122,7 +122,7 @@ func (g Garcon) suggestHelpCommandResponse(m slack.Msg) []slack.OutgoingMessage 
 
 func (g Garcon) genericHelpResponse(m slack.Msg) []slack.OutgoingMessage {
 	s := "\n • "
-	examples := g.CommandExamples[g.Stage]
+	examples := append(g.CommandExamples[g.Stage], g.CommandExamples["always"]...)
 	t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:%v%v\n", g.Patrons[m.User].Name, s, strings.Join(examples, s))
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
@@ -134,14 +134,67 @@ func (g Garcon) orderStatusResponse(m slack.Msg) []slack.OutgoingMessage {
 		orders = fmt.Sprintf("%v%v: %v\n", orders, strings.Title(u), o)
 	}
 	orders = strings.TrimSpace(orders)
-	statusTemplate := "Here's what I have for your order:\n```\n%v\n```"
-	statusMessage := fmt.Sprintf(statusTemplate, orders)
+	statusTemplate := "Here's what I have for your order from %v:\n```\n%v\n```"
+	statusMessage := fmt.Sprintf(statusTemplate, g.RequestedRestauraunt, orders)
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: statusMessage}}
 }
 
 func (g Garcon) genericCancelReponse(m slack.Msg) []slack.OutgoingMessage {
 	g.Reset()
 	t := "Very well then, I'll disappear for now!"
+	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+}
+
+func (g Garcon) helloGarcon(m slack.Msg) []slack.OutgoingMessage {
+	t := fmt.Sprintf("Hi, @%v! Would you like to place an order?", g.Patrons[m.User].Name)
+	g.InterlocutorID = m.User
+	g.Stage = "prompted"
+
+	return []slack.OutgoingMessage{
+		slack.OutgoingMessage{Channel: "C1N3MEUMN", Text: t},
+	}
+}
+
+func (g Garcon) promptForRestaurantChoice(m slack.Msg) []slack.OutgoingMessage {
+	match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
+	restaurant := match["restaurant"]
+
+	if err != nil || len(restaurant) == 0 {
+		return g.suggestHelpCommandResponse(m)
+	}
+	t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
+	g.Stage = "ordering"
+	g.RequestedRestauraunt = restaurant
+
+	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+}
+
+func (g Garcon) confirmOrderSelections(m slack.Msg) []slack.OutgoingMessage {
+	g.Stage = "confirmation"
+
+	return []slack.OutgoingMessage{
+		slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then"},
+		g.orderStatusResponse(m)[0],
+		slack.OutgoingMessage{Channel: m.Channel, Text: "Is that correct?"},
+	}
+}
+
+func (g Garcon) addItemToOrder(m slack.Msg) []slack.OutgoingMessage {
+	matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
+	item := matches["item"]
+
+	if err != nil || len(item) == 0 {
+		return g.genericHelpResponse(m)
+	}
+
+	g.Order[g.Patrons[m.User].Name] = item
+	// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
+	// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+	return []slack.OutgoingMessage{slack.OutgoingMessage{}}
+}
+
+func (g Garcon) placeOrder(m slack.Msg) []slack.OutgoingMessage {
+	t := "Okay, I'll send this order off!"
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
 
@@ -165,11 +218,14 @@ func NewGarcon() *Garcon {
 		"ordering": []string{
 			"@garcon, I'd like a banana",
 			"@garcon I'll have the tuna melt",
-			"@garcon, what's our order look like so far?",
 		},
 		"confirmation": []string{
 			"yes",
 			"no",
+		},
+		"always": []string{
+			"@garcon, what's our order look like so far?",
+			"@garcon, go away",
 		},
 	}
 
@@ -237,65 +293,23 @@ func NewGarcon() *Garcon {
 
 	g.ReactionFuncs = map[string]map[string]func(slack.Msg) []slack.OutgoingMessage{
 		"uninitiated": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				t := fmt.Sprintf("Hi, @%v! Would you like to place an order?", g.Patrons[m.User].Name)
-				g.InterlocutorID = m.User
-				g.Stage = "prompted"
-
-				return []slack.OutgoingMessage{
-					slack.OutgoingMessage{Channel: "C1N3MEUMN", Text: t},
-				}
-			},
+			"affirmative": g.helloGarcon,
+			"inquisitive": g.genericHelpResponse,
 		},
 		"prompted": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
-				restaurant := match["restaurant"]
-
-				if err != nil || len(restaurant) == 0 {
-					return g.suggestHelpCommandResponse(m)
-				}
-				t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
-				g.Stage = "ordering"
-				g.RequestedRestauraunt = restaurant
-
-				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-			},
+			"affirmative": g.promptForRestaurantChoice,
 			"inquisitive": g.genericHelpResponse,
 			"cancelling":  g.genericCancelReponse,
 		},
 		"ordering": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				g.Stage = "confirmation"
-
-				return []slack.OutgoingMessage{
-					slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then"},
-					g.orderStatusResponse(m)[0],
-					slack.OutgoingMessage{Channel: m.Channel, Text: "Is that correct?"},
-				}
-			},
-			"contributing": func(m slack.Msg) []slack.OutgoingMessage {
-				matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
-				item := matches["item"]
-
-				if err != nil || len(item) == 0 {
-					return g.genericHelpResponse(m)
-				}
-
-				g.Order[g.Patrons[m.User].Name] = item
-				// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
-				// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-				return []slack.OutgoingMessage{slack.OutgoingMessage{}}
-			},
-			"inquisitive": g.genericHelpResponse,
-			"cancelling":  g.genericCancelReponse,
-			"status":      g.orderStatusResponse,
+			"affirmative":  g.confirmOrderSelections,
+			"contributing": g.addItemToOrder,
+			"inquisitive":  g.genericHelpResponse,
+			"cancelling":   g.genericCancelReponse,
+			"status":       g.orderStatusResponse,
 		},
 		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				t := "Okay, I'll send this order off!"
-				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-			},
+			"affirmative":    g.placeOrder,
 			"cancelling":     g.genericCancelReponse,
 			"inquisitive":    g.genericHelpResponse,
 			"indeterminable": g.genericHelpResponse,
