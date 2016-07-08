@@ -1,0 +1,9 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [],
+	"heroku": {
+		"goVersion": "go1.6"
+	},
+	"rootPath": "garcon"
+}
