@@ -10,11 +10,11 @@ import (
 
 var g *Garcon
 var sb *slack.Client
+var rtm *slack.RTM
 
 func init() {
 	sb = slack.New(os.Getenv("GARCON_TOKEN"))
-	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
-	slack.SetLogger(logger)
+	rtm = sb.NewRTM()
 	// sb.SetDebug(true)
 
 	g = NewGarcon()
@@ -73,7 +73,7 @@ func handleMessage(m slack.Msg) {
 		responses := g.ReactionFuncs[g.Stage][mt](m)
 		for _, response := range responses {
 			if len(response.Text) > 0 {
-				sb.PostMessage(m.Channel, response.Text, slack.PostMessageParameters{})
+				rtm.SendMessage(rtm.NewOutgoingMessage(response.Text, response.Channel))
 				if err != nil {
 					log.Printf("error sending message:\n%v\n", err)
 				} else {
@@ -89,7 +89,6 @@ func handleMessage(m slack.Msg) {
 }
 
 func main() {
-	rtm := sb.NewRTM()
 	go rtm.ManageConnection()
 	for {
 		select {
