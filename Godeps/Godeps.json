@@ -1,0 +1,20 @@
+{
+	"ImportPath": "garcon",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v74",
+	"Deps": [
+		{
+			"ImportPath": "github.com/literallyelvis/solid",
+			"Rev": "81760364153bc33739c2d4dd9e51ad34faf1a767"
+		},
+		{
+			"ImportPath": "github.com/nlopes/slack",
+			"Comment": "v0.0.1-118-g4feee83",
+			"Rev": "4feee83bb2b31d790977ce727a028c6a542c72c7"
+		},
+		{
+			"ImportPath": "golang.org/x/net/websocket",
+			"Rev": "f841c39de738b1d0df95b5a7187744f0e03d8112"
+		}
+	]
+}
