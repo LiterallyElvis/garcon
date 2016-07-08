@@ -7,7 +7,7 @@ import (
 )
 
 func stringFitsPattern(p, s string) bool {
-	re := regexp.MustCompile(p)
+	re := regexp.MustCompile(fmt.Sprintf("(?i)%v", p))
 	return re.Match([]byte(s))
 }
 

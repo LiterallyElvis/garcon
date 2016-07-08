@@ -156,15 +156,69 @@ func (g Garcon) helpRequested(m string) (helpRequested bool) {
 	return strings.ToLower(m) == "@garcon, help me!"
 }
 
-func (g Garcon) suggestHelpCommandResponse(m slack.Msg) []slack.OutgoingMessage {
+func (g *Garcon) suggestHelpCommandResponse(m slack.Msg) []slack.OutgoingMessage {
 	t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. For help, say \"@garcon, help me!\"", g.Patrons[m.User].Name)
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
 
-func (g Garcon) genericHelpResponse(m slack.Msg) []slack.OutgoingMessage {
+func (g *Garcon) genericHelpResponse(m slack.Msg) []slack.OutgoingMessage {
 	s := "\n • "
 	examples := append(g.CommandExamples[g.Stage], g.CommandExamples["always"]...)
 	t := fmt.Sprintf("I'm sorry, @%v, I couldn't understand what you said. Here are some things I might understand:%v%v\n", g.Patrons[m.User].Name, s, strings.Join(examples, s))
+	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+}
+
+func (g *Garcon) helloGarcon(m slack.Msg) []slack.OutgoingMessage {
+	t := fmt.Sprintf("Hi, @%v! Would you like to place an order?", g.Patrons[m.User].Name)
+	g.InterlocutorID = m.User
+	g.Stage = "prompted"
+
+	return []slack.OutgoingMessage{
+		slack.OutgoingMessage{Channel: m.Channel, Text: t},
+	}
+}
+
+func (g *Garcon) validateRestaurant(m slack.Msg) []slack.OutgoingMessage {
+	match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
+	restaurant := match["restaurant"]
+
+	if err != nil || len(restaurant) == 0 {
+		return g.suggestHelpCommandResponse(m)
+	}
+	t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
+	g.Stage = "ordering"
+	g.RequestedRestauraunt = restaurant
+
+	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+}
+
+func (g *Garcon) validateOrder(m slack.Msg) []slack.OutgoingMessage {
+	g.Stage = "confirmation"
+
+	return []slack.OutgoingMessage{
+		slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then"},
+		g.orderStatusResponse(m)[0],
+		slack.OutgoingMessage{Channel: m.Channel, Text: "Is that correct?"},
+	}
+}
+
+func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
+	matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
+	item := matches["item"]
+
+	if err != nil || len(item) == 0 {
+		return g.genericHelpResponse(m)
+	}
+
+	g.Order[g.Patrons[m.User].Name] = item
+	// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
+	// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
+	return []slack.OutgoingMessage{slack.OutgoingMessage{}}
+}
+
+// This pointered Gaston is anticipatory, though not yet necessary
+func (g *Garcon) placeOrder(m slack.Msg) []slack.OutgoingMessage {
+	t := "Okay, I'll send this order off!"
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
 
@@ -198,9 +252,6 @@ func NewGarcon() *Garcon {
 	}
 
 	g.CommandExamples = map[string][]string{
-		"uninitiated": []string{
-			"oh, garçon?",
-		},
 		"prompted": []string{
 			"We'd like to place an order from the Chili's at 45th & Lamar",
 			"We would like to order from the Chili's at 45th & Lamar",
@@ -215,12 +266,11 @@ func NewGarcon() *Garcon {
 			"no",
 		},
 		"always": []string{
-			"@garcon, what's our order look like so far?",
 			"@garcon, go away",
 		},
 	}
 
-	// possible returns: affirmative, negative, additive, cancelling, irrelevant, indeterminable
+	// possible returns: affirmative, negative, additive, cancelling, irrelevant, insufficient
 	g.MessageTypeFuncs = map[string]func(slack.Msg) (string, error){
 		"uninitiated": func(m slack.Msg) (string, error) {
 			if g.cancellationCommandIssued(m.Text) {
@@ -236,7 +286,7 @@ func NewGarcon() *Garcon {
 				return "cancelling", nil
 			}
 			if g.helpRequested(m.Text) {
-				return "inquisitive", nil
+				return "insufficient", nil
 			}
 			negative := responseIsNegative(m.Text)
 			if negative || m.User != g.InterlocutorID {
@@ -245,14 +295,14 @@ func NewGarcon() *Garcon {
 			if stringFitsPattern(orderInitiationPattern, m.Text) {
 				return "affirmative", nil
 			}
-			return "indeterminable", nil
+			return "insufficient", nil
 		},
 		"ordering": func(m slack.Msg) (string, error) {
 			if g.cancellationCommandIssued(m.Text) {
 				return "cancelling", nil
 			}
 			if g.helpRequested(m.Text) {
-				return "inquisitive", nil
+				return "insufficient", nil
 			}
 			if g.itemAddedToOrder(m.Text) {
 				return "contributing", nil
@@ -270,7 +320,7 @@ func NewGarcon() *Garcon {
 				return "cancelling", nil
 			}
 			if g.helpRequested(m.Text) {
-				return "inquisitive", nil
+				return "insufficient", nil
 			}
 			if responseIsAffirmative(m.Text) {
 				return "affirmative", nil
@@ -278,74 +328,30 @@ func NewGarcon() *Garcon {
 			if responseIsNegative(m.Text) {
 				return "negative", nil
 			}
-			return "indeterminable", nil
+			return "insufficient", nil
 		},
 	}
 
 	g.ReactionFuncs = map[string]map[string]func(slack.Msg) []slack.OutgoingMessage{
 		"uninitiated": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				t := fmt.Sprintf("Hi, @%v! Would you like to place an order?", g.Patrons[m.User].Name)
-				g.InterlocutorID = m.User
-				g.Stage = "prompted"
-
-				return []slack.OutgoingMessage{
-					slack.OutgoingMessage{Channel: "C1N3MEUMN", Text: t},
-				}
-			},
+			"affirmative": g.helloGarcon,
 		},
 		"prompted": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
-				restaurant := match["restaurant"]
-
-				if err != nil || len(restaurant) == 0 {
-					return g.suggestHelpCommandResponse(m)
-				}
-				t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
-				g.Stage = "ordering"
-				g.RequestedRestauraunt = restaurant
-
-				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-			},
-			"inquisitive": g.genericHelpResponse,
-			"cancelling":  g.genericCancelReponse,
+			"affirmative":  g.validateRestaurant,
+			"insufficient": g.genericHelpResponse,
+			"cancelling":   g.genericCancelReponse,
 		},
 		"ordering": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				g.Stage = "confirmation"
-
-				return []slack.OutgoingMessage{
-					slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then"},
-					g.orderStatusResponse(m)[0],
-					slack.OutgoingMessage{Channel: m.Channel, Text: "Is that correct?"},
-				}
-			},
-			"contributing": func(m slack.Msg) []slack.OutgoingMessage {
-				matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
-				item := matches["item"]
-
-				if err != nil || len(item) == 0 {
-					return g.genericHelpResponse(m)
-				}
-
-				g.Order[g.Patrons[m.User].Name] = item
-				// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
-				// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-				return []slack.OutgoingMessage{slack.OutgoingMessage{}}
-			},
-			"inquisitive": g.genericHelpResponse,
-			"cancelling":  g.genericCancelReponse,
-			"status":      g.orderStatusResponse,
+			"affirmative":  g.validateOrder,
+			"contributing": g.addItemToGroupOrder,
+			"insufficient": g.genericHelpResponse,
+			"cancelling":   g.genericCancelReponse,
+			"status":       g.orderStatusResponse,
 		},
 		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{
-			"affirmative": func(m slack.Msg) []slack.OutgoingMessage {
-				t := "Okay, I'll send this order off!"
-				return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-			},
-			"cancelling":     g.genericCancelReponse,
-			"inquisitive":    g.genericHelpResponse,
-			"indeterminable": g.genericHelpResponse,
+			"affirmative":  g.placeOrder,
+			"cancelling":   g.genericCancelReponse,
+			"insufficient": g.genericHelpResponse,
 		},
 	}
 

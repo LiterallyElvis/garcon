@@ -26,7 +26,10 @@ func init() {
 	if err != nil {
 		log.Printf("Error retrieving users:\n%v\n", err)
 	}
-	g.Patrons = makeIDToUserMap(users)
+	g.Patrons = make(map[string]slack.User)
+	for _, u := range users {
+		g.Patrons[u.ID] = u
+	}
 	g.FindBotSlackID()
 
 	c, err := solid.New(os.Getenv("FAVOR_TOKEN"))
@@ -44,6 +47,15 @@ func init() {
 			g.AllowedChannels = append(g.AllowedChannels, ch.ID)
 		}
 	}
+}
+
+func logMessage(m slack.Msg) {
+	messageString := `
+		Channel: %v
+		User:    %v
+		Text:    %v
+	`
+	log.Printf(messageString, m.Channel, m.User, m.Text)
 }
 
 func makeIDToUserMap(in []slack.User) map[string]slack.User {
