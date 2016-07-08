@@ -11,8 +11,10 @@ import (
 var g *Garcon
 var sb *slack.Client
 var rtm *slack.RTM
+var allowedChannels []string
 
 func init() {
+	allowedChannels = []string{"garcon_test", "food"}
 	sb = slack.New(os.Getenv("GARCON_TOKEN"))
 	rtm = sb.NewRTM()
 	// sb.SetDebug(true)
@@ -26,11 +28,22 @@ func init() {
 	}
 	g.Patrons = makeIDToUserMap(users)
 	g.FindBotSlackID()
+
 	c, err := solid.New(os.Getenv("FAVOR_TOKEN"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	g.FavorClient = c
+
+	channels, err := sb.GetChannels(true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, ch := range channels {
+		if sliceContainsString(ch.Name, allowedChannels) {
+			g.AllowedChannels = append(g.AllowedChannels, ch.ID)
+		}
+	}
 }
 
 func makeIDToUserMap(in []slack.User) map[string]slack.User {
@@ -42,48 +55,12 @@ func makeIDToUserMap(in []slack.User) map[string]slack.User {
 }
 
 func handleMessage(m slack.Msg) {
-	if g.debug {
-		status := `
-			Stage:          %v
-			InterlocutorID: %v
-
-		`
-		log.Printf(status, g.Stage, g.InterlocutorID)
-		messageString := `
-			Channel: %v
-			User:    %v
-			Text:    %v
-
-		`
-		log.Printf(messageString, m.Channel, m.User, m.Text)
-	}
-	if m.User == g.SelfID || len(m.User) == 0 {
-		return
-	}
-
-	mt, err := g.MessageTypeFuncs[g.Stage](m)
-	if err != nil {
-		log.Printf("error determining message type: %v", err)
-	}
-	if g.debug {
-		log.Printf("determined message type to be %v\n", mt)
-	}
-
-	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
-		responses := g.ReactionFuncs[g.Stage][mt](m)
-		for _, response := range responses {
-			if len(response.Text) > 0 {
-				rtm.SendMessage(rtm.NewOutgoingMessage(response.Text, response.Channel))
-				if err != nil {
-					log.Printf("error sending message:\n%v\n", err)
-				} else {
-					log.Printf("Successfully sent the following message:\n\t%v\n", response.Text)
-				}
-			}
-		}
-	} else {
-		if g.debug {
-			log.Printf("No reaction functions found for current:\n\tStage: %v\n\tMessageType: %v\n", g.Stage, mt)
+	responses := g.RespondToMessage(m)
+	for _, response := range responses {
+		if len(response.Text) > 0 && sliceContainsString(response.Channel, g.AllowedChannels) {
+			rtm.SendMessage(rtm.NewOutgoingMessage(response.Text, response.Channel))
+		} else {
+			log.Printf("didn't send message because:\nlen(response.Text): %v\nresponse.Channel: %v\ng.AllowedChannels: %v\n", len(response.Text), response.Channel, g.AllowedChannels)
 		}
 	}
 }

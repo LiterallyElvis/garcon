@@ -21,6 +21,18 @@ func TestStringCleaning(t *testing.T) {
 	}
 }
 
+func TestStringInSlice(t *testing.T) {
+	dummySlice := []string{
+		"things",
+		"and",
+		"stuff",
+	}
+	correct := sliceContainsString("things", dummySlice)
+	if !correct {
+		t.Error("String was determined not to be present in array, when it should have been.")
+	}
+}
+
 func TestMatchesPattern(t *testing.T) {
 	m := stringFitsPattern("(<@\\w+>, abort)", "<@LOLWTFBBQ>, abort")
 	if !m {

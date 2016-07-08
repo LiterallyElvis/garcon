@@ -50,6 +50,46 @@ func (g *Garcon) Reset() {
 	g.Order = make(map[string]string)
 }
 
+// RespondToMessage TODO: Document
+func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
+	responses := []slack.OutgoingMessage{}
+	if g.debug {
+		status := `
+			Stage:          %v
+			InterlocutorID: %v
+
+		`
+		log.Printf(status, g.Stage, g.InterlocutorID)
+		messageString := `
+			Channel: %v
+			User:    %v
+			Text:    %v
+
+		`
+		log.Printf(messageString, m.Channel, m.User, m.Text)
+	}
+	if m.User == g.SelfID || len(m.User) == 0 {
+		return responses
+	}
+
+	mt, err := g.MessageTypeFuncs[g.Stage](m)
+	if err != nil {
+		log.Printf("error determining message type: %v", err)
+	}
+	if g.debug {
+		log.Printf("determined message type to be %v\n", mt)
+	}
+
+	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
+		responses = g.ReactionFuncs[g.Stage][mt](m)
+	} else {
+		if g.debug {
+			log.Printf("No reaction functions found for current:\n\tStage: %v\n\tMessageType: %v\n", g.Stage, mt)
+		}
+	}
+	return responses
+}
+
 // CancellationCommandIssued returns whether or not the most recent command
 // is a show-stopping cancellation command directed at Garcon
 func (g Garcon) cancellationCommandIssued(m string) (abortCommandIssued bool) {
@@ -153,12 +193,8 @@ func (g Garcon) genericCancelReponse(m slack.Msg) []slack.OutgoingMessage {
 func NewGarcon() *Garcon {
 	g := &Garcon{
 		SelfName: "garcon",
-		AllowedChannels: []string{
-			"garcon_test",
-			"food",
-		},
-		Stage: "uninitiated",
-		Order: make(map[string]string),
+		Stage:    "uninitiated",
+		Order:    make(map[string]string),
 	}
 
 	g.CommandExamples = map[string][]string{

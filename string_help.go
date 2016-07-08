@@ -38,9 +38,9 @@ func findElementsInString(p string, e []string, m string) (map[string]string, er
 	return nil, fmt.Errorf("No match found for %v", e)
 }
 
-func stringInArray(s string, a []string) bool {
+func sliceContainsString(s string, a []string) bool {
 	for _, x := range a {
-		if cleanString(s) == x {
+		if strings.ToLower(s) == strings.ToLower(x) {
 			return true
 		}
 	}
@@ -49,12 +49,12 @@ func stringInArray(s string, a []string) bool {
 
 func responseIsAffirmative(response string) bool {
 	affirmatives := []string{"yes", "yup", "yep", "sure", "ok", "si", "oui"}
-	return stringInArray(response, affirmatives)
+	return sliceContainsString(response, affirmatives)
 }
 
 func responseIsNegative(response string) bool {
 	negatives := []string{"no", "nope", "cancel", "neup"}
-	return stringInArray(response, negatives)
+	return sliceContainsString(response, negatives)
 }
 
 func cleanString(s string) string {
