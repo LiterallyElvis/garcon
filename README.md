@@ -1,1 +1,1 @@
-# Garçon [![Build Status](https://travis-ci.org/LiterallyElvis/garcon.svg?branch=master)](https://travis-ci.org/LiterallyElvis/garcon)
+# Garçon [![Build Status](https://travis-ci.org/LiterallyElvis/garcon.svg?branch=master)](https://travis-ci.org/LiterallyElvis/garcon) [![Go Report Card](https://goreportcard.com/badge/github.com/LiterallyElvis/garcon)](https://goreportcard.com/report/github.com/LiterallyElvis/garcon)
