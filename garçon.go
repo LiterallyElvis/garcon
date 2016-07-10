@@ -14,7 +14,7 @@ const (
 	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
 	orderStatusRequestPattern       = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
 	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)?(\\s+)you can place our order now(.*))"
-	altOrderConfirmationPattern     = "(<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready"
+	altOrderConfirmationPattern     = "((ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
@@ -47,6 +47,8 @@ func (g *Garcon) FindBotSlackID() {
 // Reset wipes the state of Garcon
 func (g *Garcon) Reset() {
 	g.Stage = "uninitiated"
+	g.InterlocutorID = ""
+	g.RequestedRestauraunt = ""
 	g.Order = make(map[string]string)
 }
 
@@ -196,7 +198,7 @@ func (g *Garcon) validateOrder(m slack.Msg) []slack.OutgoingMessage {
 	g.Stage = "confirmation"
 
 	return []slack.OutgoingMessage{
-		slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then"},
+		slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then!"},
 		g.orderStatusResponse(m)[0],
 		slack.OutgoingMessage{Channel: m.Channel, Text: "Is that correct?"},
 	}
@@ -213,7 +215,19 @@ func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
 	g.Order[g.Patrons[m.User].Name] = item
 	// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
 	// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-	return []slack.OutgoingMessage{slack.OutgoingMessage{}}
+	return []slack.OutgoingMessage{}
+}
+
+func (g *Garcon) orderIsIncorrect(m slack.Msg) []slack.OutgoingMessage {
+	t := fmt.Sprintf("Okay, I'll start over.")
+
+	g.Stage = "ordering"
+	g.RequestedRestauraunt = ""
+	g.Order = make(map[string]string)
+
+	return []slack.OutgoingMessage{
+		slack.OutgoingMessage{Channel: m.Channel, Text: t},
+	}
 }
 
 // This pointered Gaston is anticipatory, though not yet necessary
@@ -350,6 +364,7 @@ func NewGarcon() *Garcon {
 		},
 		"confirmation": map[string]func(m slack.Msg) []slack.OutgoingMessage{
 			"affirmative":  g.placeOrder,
+			"negative":     g.orderIsIncorrect,
 			"cancelling":   g.genericCancelReponse,
 			"insufficient": g.genericHelpResponse,
 		},

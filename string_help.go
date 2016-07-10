@@ -40,7 +40,7 @@ func findElementsInString(p string, e []string, m string) (map[string]string, er
 
 func sliceContainsString(s string, a []string) bool {
 	for _, x := range a {
-		if strings.ToLower(s) == strings.ToLower(x) {
+		if cleanString(s) == cleanString(x) {
 			return true
 		}
 	}
