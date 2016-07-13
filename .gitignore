@@ -25,3 +25,7 @@ _testmain.go
 
 # govendor
 vendor/*/
+
+# coverage
+cover.out
+cover.html

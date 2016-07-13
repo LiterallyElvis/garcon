@@ -34,9 +34,6 @@ func TestGarconConstructsWithoutError(t *testing.T) {
 	g.Stage = "test"
 }
 
-// orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)?(\\s+)you can place our order now(.*))"
-// altOrderConfirmationPattern     = "((ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready"
-
 func TestPossibleValidCommands(t *testing.T) {
 	patternsAndCommands := map[string][]string{
 		"(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)": []string{
