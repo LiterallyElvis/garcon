@@ -54,21 +54,7 @@ func (g *Garcon) Reset() {
 // RespondToMessage TODO: Document
 func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
 	responses := []slack.OutgoingMessage{}
-	if g.debug {
-		status := `
-			Stage:          %v
-			InterlocutorID: %v
 
-		`
-		log.Printf(status, g.Stage, g.InterlocutorID)
-		messageString := `
-			Channel: %v
-			User:    %v
-			Text:    %v
-
-		`
-		log.Printf(messageString, m.Channel, m.User, m.Text)
-	}
 	if m.User == g.SelfID || len(m.User) == 0 {
 		return responses
 	}
@@ -77,17 +63,11 @@ func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
 	if err != nil {
 		log.Printf("error determining message type: %v", err)
 	}
-	if g.debug {
-		log.Printf("determined message type to be %v\n", mt)
-	}
 
 	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
 		responses = g.ReactionFuncs[g.Stage][mt](m)
-	} else {
-		if g.debug {
-			log.Printf("No reaction functions found for current:\n\tStage: %v\n\tMessageType: %v\n", g.Stage, mt)
-		}
 	}
+
 	return responses
 }
 
@@ -103,11 +83,7 @@ func (g Garcon) cancellationCommandIssued(m string) (abortCommandIssued bool) {
 			}
 		}
 	}
-
-	if g.debug {
-		log.Printf("Checked if message received was cancellation command. Returning %v\n", abortCommandIssued)
-	}
-	return abortCommandIssued
+	return
 }
 
 // ItemAddedToOrder TODO: Document
@@ -121,10 +97,6 @@ func (g Garcon) itemAddedToOrder(m string) (itemAdded bool) {
 			}
 		}
 	}
-
-	if g.debug {
-		log.Printf("Checked if message received was to add an item to the order. Returning %v\n", itemAdded)
-	}
 	return
 }
 
@@ -133,10 +105,6 @@ func (g Garcon) orderStatusCheckRequested(m string) (requested bool) {
 	if stringFitsPattern(orderStatusRequestPattern, m) {
 		requested = true
 	}
-
-	if g.debug {
-		log.Printf("Checked if message received was an order status reequest. Returning %v\n", requested)
-	}
 	return
 }
 
@@ -144,10 +112,6 @@ func (g Garcon) orderStatusCheckRequested(m string) (requested bool) {
 func (g Garcon) readyToPlaceOrder(m string) (ready bool) {
 	if stringFitsPattern(orderConfirmationRequestPattern, m) {
 		ready = true
-	}
-
-	if g.debug {
-		log.Printf("Checked if message received was an order status reequest. Returning %v\n", ready)
 	}
 	return
 }

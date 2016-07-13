@@ -34,6 +34,27 @@ func TestGarconConstructsWithoutError(t *testing.T) {
 	g.Stage = "test"
 }
 
+func TestGarconReset(t *testing.T) {
+	expected := Garcon{
+		Stage:                "uninitiated",
+		InterlocutorID:       "",
+		RequestedRestauraunt: "",
+		Order:                map[string]string{},
+	}
+
+	actual := Garcon{
+		Stage:                "whatever",
+		InterlocutorID:       "who cares",
+		RequestedRestauraunt: "Greasy Gus's Frog Emporium",
+		Order: map[string]string{
+			"Gary": "frog balls",
+		},
+	}
+	actual.Reset()
+
+	assert.Equal(t, expected, actual)
+}
+
 func TestPossibleValidCommands(t *testing.T) {
 	patternsAndCommands := map[string][]string{
 		"(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)": []string{
