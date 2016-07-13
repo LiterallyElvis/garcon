@@ -34,6 +34,48 @@ func TestGarconConstructsWithoutError(t *testing.T) {
 	g.Stage = "test"
 }
 
+// orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)?(\\s+)you can place our order now(.*))"
+// altOrderConfirmationPattern     = "((ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready"
+
+func TestPossibleValidCommands(t *testing.T) {
+	patternsAndCommands := map[string][]string{
+		"(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)": []string{
+			"We'd like to place an order from the Chili's on 45th & Lamar?",
+			"We would like to place an order for the Chili's on 45th & Lamar?",
+		},
+		"(<@(?P<user>\\w+)>(:|,)?(\\s+)(abort|go away|leave|shut up))": []string{
+			"<@GARCON>: abort",
+			"<@GARCON>: go away",
+			"<@GARCON>   LEAVE",
+			"<@GARCON>, shut up",
+		},
+		"(<@(?P<user>\\w+)>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
+			"<@GARCON>: I would like the peach melba",
+			"<@GARCON>:    I'd like the peach melba",
+			"<@GARCON>: I'll have the peach melba",
+		},
+		"(<@(?P<user>\\w+)>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)": []string{
+			"<@GARCON>, what does our order look like?",
+			"<@GARCON>: what's our order look like?",
+			"<@GARCON>, what does our order look like so far?",
+			"<@GARCON>: what's our order look like so far?",
+		},
+		"(ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready( now)?": []string{
+			"ok, <@GARCON>, I think we're ready",
+			"ok, <@GARCON>: I think we're ready now",
+			"ok, <@GARCON>   I think we are ready",
+		},
+	}
+
+	for pattern, commands := range patternsAndCommands {
+		for _, command := range commands {
+			if !stringFitsPattern(pattern, command) {
+				t.Errorf("%v didn't fit the pattern %v", command, pattern)
+			}
+		}
+	}
+}
+
 func TestGarconRespondsToHello(t *testing.T) {
 	g, m := returnGarconAndEmptyMessage()
 	m.Text = "oh, garçon?"
@@ -102,7 +144,7 @@ func TestGarconRespondsToOrderConfirmationRequest(t *testing.T) {
 
 	_, m = returnGarconAndEmptyMessage()
 	g.Stage = "ordering"
-	m.Text = "<@GARCONBOT> you can place our order now."
+	m.Text = "ok, <@GARCON>: I think we're ready now"
 
 	messages := g.RespondToMessage(m)
 	assert.Equal(t, 3, len(messages))

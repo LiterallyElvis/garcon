@@ -13,8 +13,7 @@ const (
 	abortCommandPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(abort|go away|leave|shut up))"
 	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
 	orderStatusRequestPattern       = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
-	orderConfirmationRequestPattern = "(<@(?P<user>\\w+)>(:|,)?(\\s+)you can place our order now(.*))"
-	altOrderConfirmationPattern     = "((ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready"
+	orderConfirmationRequestPattern = "(ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready( now)?"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
