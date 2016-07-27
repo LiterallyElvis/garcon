@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/literallyelvis/solid"
 	"github.com/nlopes/slack"
 	"log"
 	"strings"
@@ -25,8 +24,6 @@ type Garcon struct {
 	AllowedChannels      []string
 	InterlocutorID       string
 	RequestedRestauraunt string
-	FavorClient          *solid.Client
-	FavorOrder           solid.Favor
 	Order                map[string]string
 	Patrons              map[string]slack.User
 	MessageTypeFuncs     map[string]func(slack.Msg) (string, error)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/literallyelvis/solid"
 	"github.com/nlopes/slack"
 	"log"
 	"os"
@@ -31,12 +30,6 @@ func init() {
 		g.Patrons[u.ID] = u
 	}
 	g.FindBotSlackID()
-
-	c, err := solid.New(os.Getenv("FAVOR_TOKEN"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	g.FavorClient = c
 
 	channels, err := sb.GetChannels(true)
 	if err != nil {
