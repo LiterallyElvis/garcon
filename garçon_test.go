@@ -67,6 +67,12 @@ func TestPossibleValidCommands(t *testing.T) {
 			"<@GARCON>   LEAVE",
 			"<@GARCON>, shut up",
 		},
+		"(<@(?P<user>\\w+)>(:|,)?(\\s+)(help|help me|help us)(!)?)": []string{
+			"<@GARCON>: help me",
+			"<@GARCON>: help!",
+			"<@GARCON>   help us!",
+			"<@GARCON>, help us",
+		},
 		"(<@(?P<user>\\w+)>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
 			"<@GARCON>: I would like the peach melba",
 			"<@GARCON>:    I'd like the peach melba",
@@ -140,7 +146,7 @@ func TestGarconRespondsToInvalidResponseAfterPrompt(t *testing.T) {
 
 	messages := g.RespondToMessage(m)
 	assert.Equal(t, 1, len(messages))
-	assert.Equal(t, "I'm sorry, @brainfart, I couldn't understand what you said. Here are some things I might understand:\n • We'd like to place an order from the Chili's at 45th & Lamar\n • We would like to order from the Chili's at 45th & Lamar\n • @garcon, go away\n", messages[0].Text)
+	assert.Equal(t, "I'm sorry, @brainfart, I couldn't understand what you said. Here are some things I might understand:\n • We'd like to place an order for the Chili's at 45th & Lamar\n • We would like to order from the Chili's at 45th & Lamar\n • @garcon, go away\n • @garcon, help!\n", messages[0].Text)
 }
 
 func TestGarconRespondsToOrderRequest(t *testing.T) {
