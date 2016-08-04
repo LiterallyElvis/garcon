@@ -9,11 +9,11 @@ import (
 
 const (
 	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
-	abortCommandPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(abort|go away|leave|shut up))"
-	helpRequestPattern              = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(help|help me|help us)(!)?)"
-	orderPlacingPattern             = "(<@(?P<user>\\w+)>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
-	orderStatusRequestPattern       = "(<@(?P<user>\\w+)>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
-	orderConfirmationRequestPattern = "(ok)?( |, )?<@(?P<user>\\w+)>(:|,)?(\\s+)I think (we are|we're) ready( now)?"
+	abortCommandPattern             = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)(abort|go away|leave|shut up))"
+	helpRequestPattern              = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)(help|help me|help us)(!)?)"
+	orderPlacingPattern             = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
+	orderStatusRequestPattern       = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
+	orderConfirmationRequestPattern = "(ok)?( |, )?<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)I think (we are|we're) ready( now)?"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
@@ -62,6 +62,10 @@ func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
 		log.Printf("error determining message type: %v", err)
 	}
 
+	if g.debug {
+		fmt.Printf("Determined message type of '%v' to be %v", m.Text, mt)
+	}
+
 	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
 		responses = g.ReactionFuncs[g.Stage][mt](m)
 	}
@@ -69,18 +73,18 @@ func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
 	return responses
 }
 
-func (g Garcon) logGarconInfo() {
+func (g Garcon) logGarconInfo(m slack.Msg) {
 	fmt.Printf(`
-	SelfName             : %v         
+	m.Text               : %v
+    ======================
+	SelfName             : %v
 	SelfID               : %v
 	Stage                : %v
 	AllowedChannels      : %v
 	InterlocutorID       : %v
 	RequestedRestauraunt : %v
 	Order                : %v
-	
-	CommandExamples      : %v
-	`, g.SelfName, g.SelfID, g.Stage, g.AllowedChannels, g.InterlocutorID, g.RequestedRestauraunt, g.Order, g.CommandExamples)
+	`, m.Text, g.SelfName, g.SelfID, g.Stage, g.AllowedChannels, g.InterlocutorID, g.RequestedRestauraunt, g.Order)
 }
 
 // CancellationCommandIssued returns whether or not the most recent command
@@ -103,10 +107,17 @@ func (g Garcon) itemAddedToOrder(m string) (itemAdded bool) {
 	if stringFitsPattern(orderPlacingPattern, m) {
 		matches, _ := findElementsInString(orderPlacingPattern, []string{"user", "item"}, m)
 		user := matches["user"]
+
+		if g.debug {
+			fmt.Printf("user was matched as %v", user)
+		}
+
 		if _, ok := g.Patrons[user]; ok {
 			if strings.ToLower(g.Patrons[user].Name) == "garcon" && len(matches["item"]) > 0 {
 				itemAdded = true
 			}
+		} else {
+			fmt.Printf("user was matched as %v, which wasn't found in g.Patrons", user)
 		}
 	}
 	return
@@ -191,6 +202,10 @@ func (g *Garcon) validateOrder(m slack.Msg) []slack.OutgoingMessage {
 func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
 	matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
 	item := matches["item"]
+
+	if g.debug {
+		fmt.Printf("\n\ncommand: %v, item: %v\n\n", m.Text, item)
+	}
 
 	if err != nil || len(item) == 0 {
 		return g.genericHelpResponse(m)

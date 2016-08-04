@@ -13,7 +13,7 @@ var rtm *slack.RTM
 var allowedChannels []string
 
 func init() {
-	allowedChannels = []string{"garcon_test", "food"}
+	allowedChannels = []string{"garcon_test", "food", "bot-tester"}
 	sb = slack.New(os.Getenv("GARCON_TOKEN"))
 	rtm = sb.NewRTM()
 	// sb.SetDebug(true)
@@ -63,7 +63,7 @@ func makeIDToUserMap(in []slack.User) map[string]slack.User {
 func handleMessage(m slack.Msg) {
 	responses := g.RespondToMessage(m)
 	if g.debug {
-		g.logGarconInfo()
+		g.logGarconInfo(m)
 	}
 	for _, response := range responses {
 		if len(response.Text) > 0 && sliceContainsString(response.Channel, g.AllowedChannels) {
