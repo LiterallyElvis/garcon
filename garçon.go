@@ -9,11 +9,11 @@ import (
 
 const (
 	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
-	abortCommandPattern             = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)(abort|go away|leave|shut up))"
-	helpRequestPattern              = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)(help|help me|help us)(!)?)"
-	orderPlacingPattern             = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
-	orderStatusRequestPattern       = "(<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
-	orderConfirmationRequestPattern = "(ok)?( |, )?<@(?P<user>[A-Z0-9]{9})>(:|,)?(\\s+)I think (we are|we're) ready( now)?"
+	abortCommandPattern             = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(abort|go away|leave|shut up))"
+	helpRequestPattern              = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(help|help me|help us)(!)?)"
+	orderPlacingPattern             = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))"
+	orderStatusRequestPattern       = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
+	orderConfirmationRequestPattern = "(ok)?( |, )?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)I think (we are|we're) ready( now)?"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
@@ -32,7 +32,8 @@ type Garcon struct {
 	CommandExamples      map[string][]string
 }
 
-// FindBotSlackID TODO: document
+// FindBotSlackID iterates over all the slack users and figures out what
+// Garcon's ID is
 func (g *Garcon) FindBotSlackID() {
 	for id, p := range g.Patrons {
 		if strings.ToLower(p.Name) == strings.ToLower(g.SelfName) {
