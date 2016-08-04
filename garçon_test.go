@@ -75,10 +75,11 @@ func TestPossibleValidCommands(t *testing.T) {
 			"<@GARCONBOT>, help us",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
-			"<@GARCONBOT>: I would like the peach melba",
-			"<@GARCONBOT>:    I'd like the peach melba",
-			"<@GARCONBOT> I'll have the peach melba",
-			"<@U1VGX2H5L>, I'll have the poutine",
+			"<@GARCONB0T>: I would like the peach melba",
+			"<@GARCONB0T>:    I'd like the peach melba",
+			"<@GARCONB0T> I'll have the peach melba",
+			"<@GARCONB0T>, I'll have the poutine",
+			"<@GARCONB0T>:I’ll have a Super Bol",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)": []string{
 			"<@GARCONBOT>, what does our order look like?",

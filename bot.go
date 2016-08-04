@@ -13,7 +13,7 @@ var rtm *slack.RTM
 var allowedChannels []string
 
 func init() {
-	allowedChannels = []string{"garcon_test", "food", "bot-tester"}
+	allowedChannels = []string{"food", "bot-tester"}
 	sb = slack.New(os.Getenv("GARCON_TOKEN"))
 	rtm = sb.NewRTM()
 	// sb.SetDebug(true)
