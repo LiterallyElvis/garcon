@@ -6,16 +6,22 @@ import (
 	"strings"
 )
 
+func cleanSlackString(s string) string {
+	return strings.Replace(s, "’", "'", -1)
+}
+
 func stringFitsPattern(p, s string) bool {
+	s = cleanSlackString(s)
 	re := regexp.MustCompile(fmt.Sprintf("(?i)%v", p))
 	return re.Match([]byte(s))
 }
 
-func findElementsInString(p string, e []string, m string) (map[string]string, error) {
+func findElementsInString(p string, e []string, s string) (map[string]string, error) {
+	s = cleanSlackString(s)
 	re := regexp.MustCompile(fmt.Sprintf("(?i)%v", p))
 
 	n1 := re.SubexpNames()
-	r2 := re.FindAllStringSubmatch(m, -1)
+	r2 := re.FindAllStringSubmatch(s, -1)
 	if len(r2) == 0 {
 		return nil, fmt.Errorf("No string submatches found for %v", e)
 	}
