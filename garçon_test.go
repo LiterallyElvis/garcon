@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/nlopes/slack"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -9,13 +10,13 @@ import (
 func returnGarconAndEmptyMessage() (*Garcon, slack.Msg) {
 	dummyUserID := "LOLWTFBBQ"
 	g := NewGarcon()
-	g.SelfID = "GARCONBOT"
+	g.SelfID = "G4RC0NB0T"
 	g.Patrons = map[string]slack.User{
 		"LOLWTFBBQ": slack.User{
 			ID:   dummyUserID,
 			Name: "brainfart",
 		},
-		"GARCONBOT": slack.User{
+		"G4RC0NB0T": slack.User{
 			ID:   g.SelfID,
 			Name: "garcon",
 		},
@@ -63,34 +64,34 @@ func TestPossibleValidCommands(t *testing.T) {
 			"WE WOULD LIKE TO ORDER FROM THE CHILI'S ON 45TH AND LAMAR",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(abort|go away|leave|shut up))": []string{
-			"<@GARCONBOT>: abort",
-			"<@GARCONBOT>: go away",
-			"<@GARCONBOT>   LEAVE",
-			"<@GARCONBOT>, shut up",
+			"<@G4RC0NB0T>: abort",
+			"<@G4RC0NB0T>: go away",
+			"<@G4RC0NB0T>   LEAVE",
+			"<@G4RC0NB0T>, shut up",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(help|help me|help us)(!)?)": []string{
-			"<@GARCONBOT>: help me",
-			"<@GARCONBOT>: help!",
-			"<@GARCONBOT>   help us!",
-			"<@GARCONBOT>, help us",
+			"<@G4RC0NB0T>: help me",
+			"<@G4RC0NB0T>: help!",
+			"<@G4RC0NB0T>   help us!",
+			"<@G4RC0NB0T>, help us",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
-			"<@GARCONB0T>: I would like the peach melba",
-			"<@GARCONB0T>:    I'd like the peach melba",
-			"<@GARCONB0T> I'll have the peach melba",
-			"<@GARCONB0T>, I'll have the poutine",
-			"<@GARCONB0T>:I’ll have a Super Bol",
+			"<@G4RC0NB0T>: I would like the peach melba",
+			"<@G4RC0NB0T>:    I'd like the peach melba",
+			"<@G4RC0NB0T> I'll have the peach melba",
+			"<@G4RC0NB0T>, I'll have the poutine",
+			// "<@G4RC0NB0T>:I’ll have a Super Bol",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)": []string{
-			"<@GARCONBOT>, what does our order look like?",
-			"<@GARCONBOT>: what's our order look like?",
-			"<@GARCONBOT>, what does our order look like so far?",
-			"<@GARCONBOT>: what's our order look like so far?",
+			"<@G4RC0NB0T>, what does our order look like?",
+			"<@G4RC0NB0T>: what's our order look like?",
+			"<@G4RC0NB0T>, what does our order look like so far?",
+			"<@G4RC0NB0T>: what's our order look like so far?",
 		},
 		"(ok)?( |, )?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)I think (we are|we're) ready( now)?": []string{
-			"ok, <@GARCONBOT>, I think we're ready",
-			"ok, <@GARCONBOT>: I think we're ready now",
-			"ok, <@GARCONBOT>   I think we are ready",
+			"ok, <@G4RC0NB0T>, I think we're ready",
+			"ok, <@G4RC0NB0T>: I think we're ready now",
+			"ok, <@G4RC0NB0T>   I think we are ready",
 		},
 	}
 
@@ -109,6 +110,35 @@ func TestGarconRespondsToHello(t *testing.T) {
 	messages := g.RespondToMessage(m)
 	assert.Equal(t, 1, len(messages))
 	assert.Equal(t, "Hi, @brainfart! Would you like to place an order?", messages[0].Text)
+}
+
+func TestGarconUnderstandsWhenAddressed(t *testing.T) {
+	g, _ := returnGarconAndEmptyMessage()
+	validMessages := []slack.Msg{
+		slack.Msg{Text: "ok <@G4RC0NB0T>, "},
+		slack.Msg{Text: "okay <@G4RC0NB0T>, "},
+		slack.Msg{Text: "ok, <@G4RC0NB0T>, "},
+		slack.Msg{Text: "okay, <@G4RC0NB0T>, "},
+
+		slack.Msg{Text: "ok <@G4RC0NB0T>: "},
+		slack.Msg{Text: "okay <@G4RC0NB0T>: "},
+		slack.Msg{Text: "ok, <@G4RC0NB0T>: "},
+		slack.Msg{Text: "okay, <@G4RC0NB0T>: "},
+
+		slack.Msg{Text: "ok <@G4RC0NB0T>,"},
+		slack.Msg{Text: "okay <@G4RC0NB0T>,"},
+		slack.Msg{Text: "ok, <@G4RC0NB0T>:"},
+		slack.Msg{Text: "okay, <@G4RC0NB0T>:"},
+
+		slack.Msg{Text: "ok <@G4RC0NB0T>"},
+		slack.Msg{Text: "okay <@G4RC0NB0T>"},
+		slack.Msg{Text: "ok, <@G4RC0NB0T>"},
+		slack.Msg{Text: "okay, <@G4RC0NB0T>"},
+	}
+
+	for _, m := range validMessages {
+		assert.True(t, g.MessageAddressesGarcon(m), fmt.Sprintf("Message '%v' not identified as messaging Garcon", m.Text))
+	}
 }
 
 func TestGarconDoesNotRespondWhenUninitiated(t *testing.T) {
@@ -155,7 +185,7 @@ func TestGarconRespondsToInvalidResponseAfterPrompt(t *testing.T) {
 func TestGarconRespondsToOrderRequest(t *testing.T) {
 	g, m := returnGarconAndEmptyMessage()
 	g.Stage = "ordering"
-	m.Text = "<@GARCONBOT> I'll have a peach melba"
+	m.Text = "<@G4RC0NB0T> I'll have a peach melba"
 
 	messages := g.RespondToMessage(m)
 	// Garçon shouldn't respond to an order.
@@ -166,12 +196,12 @@ func TestGarconRespondsToOrderConfirmationRequest(t *testing.T) {
 	g, m := returnGarconAndEmptyMessage()
 
 	g.Stage = "ordering"
-	m.Text = "<@GARCONBOT> I'll have a peach melba"
+	m.Text = "<@G4RC0NB0T> I'll have a peach melba"
 	_ = g.RespondToMessage(m)
 
 	_, m = returnGarconAndEmptyMessage()
 	g.Stage = "ordering"
-	m.Text = "ok, <@GARCONBOT>: I think we're ready now"
+	m.Text = "ok, <@G4RC0NB0T>: I think we're ready now"
 
 	messages := g.RespondToMessage(m)
 	assert.Equal(t, 3, len(messages))

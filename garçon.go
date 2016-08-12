@@ -42,6 +42,20 @@ func (g *Garcon) FindBotSlackID() {
 	}
 }
 
+// MessageAddressesGarcon returns whether or not the message began with some variant
+// of "ok, @garcon"
+func (g *Garcon) MessageAddressesGarcon(m slack.Msg) bool {
+	atGarconPattern := "((ok|okay)( |, )?)?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)"
+	match, _ := findElementsInString(atGarconPattern, []string{"user"}, m.Text)
+	user := match["user"]
+	if _, ok := g.Patrons[user]; ok {
+		if strings.ToLower(g.Patrons[user].Name) == "garcon" {
+			return true
+		}
+	}
+	return false
+}
+
 // Reset wipes the state of Garcon
 func (g *Garcon) Reset() {
 	g.Stage = "uninitiated"
