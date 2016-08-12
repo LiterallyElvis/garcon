@@ -65,11 +65,9 @@ func (g *Garcon) Reset() {
 }
 
 // RespondToMessage TODO: Document
-func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
-	responses := []slack.OutgoingMessage{}
-
+func (g *Garcon) RespondToMessage(m slack.Msg) (responses []slack.OutgoingMessage) {
 	if m.User == g.SelfID || len(m.User) == 0 {
-		return responses
+		return
 	}
 
 	mt, err := g.MessageTypeFuncs[g.Stage](m)
@@ -78,14 +76,15 @@ func (g *Garcon) RespondToMessage(m slack.Msg) []slack.OutgoingMessage {
 	}
 
 	if g.debug {
-		fmt.Printf("Determined message type of '%v' to be %v", m.Text, mt)
+		log.Printf("I've determined this message to be %v: %v", mt, m.Text)
 	}
 
 	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
 		responses = g.ReactionFuncs[g.Stage][mt](m)
+		log.Printf("Generated the following responses:\n%v\n", responses)
 	}
 
-	return responses
+	return
 }
 
 func (g Garcon) logGarconInfo(m slack.Msg) {
@@ -104,32 +103,27 @@ func (g Garcon) logGarconInfo(m slack.Msg) {
 
 // CancellationCommandIssued returns whether or not the most recent command
 // is a show-stopping cancellation command directed at Garcon
-func (g Garcon) cancellationCommandIssued(m slack.Msg) (abortCommandIssued bool) {
-	if g.MessageAddressesGarcon(m) && stringFitsPattern(abortCommandPattern, m.Text) {
-		match, _ := findElementsInString(abortCommandPattern, []string{"user"}, m.Text)
-		user := match["user"]
-		if _, ok := g.Patrons[user]; ok {
-			if strings.ToLower(g.Patrons[user].Name) == "garcon" {
-				abortCommandIssued = true
-			}
-		}
-	}
-	return
+func (g Garcon) cancellationCommandIssued(m slack.Msg) bool {
+	return g.MessageAddressesGarcon(m) && stringFitsPattern(abortCommandPattern, m.Text)
 }
 
 // ItemAddedToOrder TODO: Document
-func (g Garcon) itemAddedToOrder(m slack.Msg) (itemAdded bool) {
-	if stringFitsPattern(orderPlacingPattern, m.Text) {
-		matches, _ := findElementsInString(orderPlacingPattern, []string{"user", "item"}, m.Text)
-		user := matches["user"]
-
+func (g Garcon) itemAddedToOrder(m slack.Msg) (orderPlaced bool) {
+	messageAddressesGarcon := g.MessageAddressesGarcon(m)
+	messageIsPlacingAnOrder := stringFitsPattern(orderPlacingPattern, m.Text)
+	if messageAddressesGarcon && messageIsPlacingAnOrder {
+		orderPlaced = true
+	} else {
 		if g.debug {
-			fmt.Printf("user was matched as %v", user)
-		}
-
-		if _, ok := g.Patrons[user]; ok {
-			if strings.ToLower(g.Patrons[user].Name) == "garcon" && len(matches["item"]) > 0 {
-				itemAdded = true
+			if messageAddressesGarcon {
+				log.Printf("I think this message is meant for me: %v", m.Text)
+			} else {
+				log.Printf("This message wasn't meant for me: %v", m.Text)
+			}
+			if messageIsPlacingAnOrder {
+				log.Printf("I think this message is trying to place an order: %v", m.Text)
+			} else {
+				log.Printf("I don't think this message is trying to place an order: %v", m.Text)
 			}
 		}
 	}
@@ -217,7 +211,7 @@ func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
 	item := matches["item"]
 
 	if g.debug {
-		fmt.Printf("\n\ncommand: %v, item: %v\n\n", m.Text, item)
+		log.Printf("I've received an order for %v, and will be adding it to the group order", item)
 	}
 
 	if err != nil || len(item) == 0 {
@@ -225,9 +219,13 @@ func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
 	}
 
 	g.Order[g.Patrons[m.User].Name] = item
-	// t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
-	// return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
-	return []slack.OutgoingMessage{}
+
+	log.Printf("\n\n\n")
+	g.logGarconInfo(m)
+	log.Printf("\n\n\n")
+
+	t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
+	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
 
 func (g *Garcon) orderIsIncorrect(m slack.Msg) []slack.OutgoingMessage {
