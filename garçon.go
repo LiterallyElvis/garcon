@@ -9,11 +9,11 @@ import (
 
 const (
 	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
-	abortCommandPattern             = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(abort|go away|leave|shut up))"
-	helpRequestPattern              = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(help|help me|help us)(!)?)"
-	orderPlacingPattern             = "<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have)(\\s+)(?P<item>.*)"
-	orderStatusRequestPattern       = "(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)"
-	orderConfirmationRequestPattern = "(ok)?( |, )?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)I think (we are|we're) ready( now)?"
+	abortCommandPattern             = "(abort|go away|leave|shut up)"
+	helpRequestPattern              = "(help|help me|help us)(!)?"
+	orderPlacingPattern             = "((I would|I'd) like|I'll have)(\\s*?)(?P<item>.*)"
+	orderStatusRequestPattern       = "(what does|what's) our order look like( so far)??"
+	orderConfirmationRequestPattern = "I think (we are|we're) ready( now)?"
 )
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
@@ -104,9 +104,9 @@ func (g Garcon) logGarconInfo(m slack.Msg) {
 
 // CancellationCommandIssued returns whether or not the most recent command
 // is a show-stopping cancellation command directed at Garcon
-func (g Garcon) cancellationCommandIssued(m string) (abortCommandIssued bool) {
-	if stringFitsPattern(abortCommandPattern, m) {
-		match, _ := findElementsInString(abortCommandPattern, []string{"user"}, m)
+func (g Garcon) cancellationCommandIssued(m slack.Msg) (abortCommandIssued bool) {
+	if g.MessageAddressesGarcon(m) && stringFitsPattern(abortCommandPattern, m.Text) {
+		match, _ := findElementsInString(abortCommandPattern, []string{"user"}, m.Text)
 		user := match["user"]
 		if _, ok := g.Patrons[user]; ok {
 			if strings.ToLower(g.Patrons[user].Name) == "garcon" {
@@ -118,9 +118,9 @@ func (g Garcon) cancellationCommandIssued(m string) (abortCommandIssued bool) {
 }
 
 // ItemAddedToOrder TODO: Document
-func (g Garcon) itemAddedToOrder(m string) (itemAdded bool) {
-	if stringFitsPattern(orderPlacingPattern, m) {
-		matches, _ := findElementsInString(orderPlacingPattern, []string{"user", "item"}, m)
+func (g Garcon) itemAddedToOrder(m slack.Msg) (itemAdded bool) {
+	if stringFitsPattern(orderPlacingPattern, m.Text) {
+		matches, _ := findElementsInString(orderPlacingPattern, []string{"user", "item"}, m.Text)
 		user := matches["user"]
 
 		if g.debug {
@@ -137,25 +137,25 @@ func (g Garcon) itemAddedToOrder(m string) (itemAdded bool) {
 }
 
 // OrderStatusCheckRequested TODO: Document
-func (g Garcon) orderStatusCheckRequested(m string) (requested bool) {
-	if stringFitsPattern(orderStatusRequestPattern, m) {
+func (g Garcon) orderStatusCheckRequested(m slack.Msg) (requested bool) {
+	if stringFitsPattern(orderStatusRequestPattern, m.Text) {
 		requested = true
 	}
 	return
 }
 
 // ReadyToPlaceOrder TODO: Document
-func (g Garcon) readyToPlaceOrder(m string) (ready bool) {
-	if stringFitsPattern(orderConfirmationRequestPattern, m) {
+func (g Garcon) readyToPlaceOrder(m slack.Msg) (ready bool) {
+	if stringFitsPattern(orderConfirmationRequestPattern, m.Text) {
 		ready = true
 	}
 	return
 }
 
 // HelpRequested TODO: Document
-func (g Garcon) helpRequested(m string) (helpRequested bool) {
-	if stringFitsPattern(helpRequestPattern, m) {
-		match, _ := findElementsInString(helpRequestPattern, []string{"user"}, m)
+func (g Garcon) helpRequested(m slack.Msg) (helpRequested bool) {
+	if stringFitsPattern(helpRequestPattern, m.Text) {
+		match, _ := findElementsInString(helpRequestPattern, []string{"user"}, m.Text)
 		user := match["user"]
 		if _, ok := g.Patrons[user]; ok {
 			if strings.ToLower(g.Patrons[user].Name) == strings.ToLower(g.SelfName) {
@@ -300,7 +300,7 @@ func NewGarcon() *Garcon {
 	// possible returns: affirmative, negative, additive, cancelling, irrelevant, insufficient
 	g.MessageTypeFuncs = map[string]func(slack.Msg) (string, error){
 		"uninitiated": func(m slack.Msg) (string, error) {
-			if g.cancellationCommandIssued(m.Text) {
+			if g.cancellationCommandIssued(m) {
 				return "cancelling", nil
 			}
 			if strings.ToLower(m.Text) == "oh, garçon?" || strings.ToLower(m.Text) == "oh, @garcon?" {
@@ -309,10 +309,10 @@ func NewGarcon() *Garcon {
 			return "irrelevant", nil
 		},
 		"prompted": func(m slack.Msg) (string, error) {
-			if g.cancellationCommandIssued(m.Text) {
+			if g.cancellationCommandIssued(m) {
 				return "cancelling", nil
 			}
-			if g.helpRequested(m.Text) {
+			if g.helpRequested(m) {
 				return "insufficient", nil
 			}
 			negative := responseIsNegative(m.Text)
@@ -325,28 +325,28 @@ func NewGarcon() *Garcon {
 			return "insufficient", nil
 		},
 		"ordering": func(m slack.Msg) (string, error) {
-			if g.cancellationCommandIssued(m.Text) {
+			if g.cancellationCommandIssued(m) {
 				return "cancelling", nil
 			}
-			if g.helpRequested(m.Text) {
+			if g.helpRequested(m) {
 				return "insufficient", nil
 			}
-			if g.itemAddedToOrder(m.Text) {
+			if g.itemAddedToOrder(m) {
 				return "contributing", nil
 			}
-			if g.orderStatusCheckRequested(m.Text) {
+			if g.orderStatusCheckRequested(m) {
 				return "status", nil
 			}
-			if g.readyToPlaceOrder(m.Text) {
+			if g.readyToPlaceOrder(m) {
 				return "affirmative", nil
 			}
 			return "indeterminable", nil
 		},
 		"confirmation": func(m slack.Msg) (string, error) {
-			if g.cancellationCommandIssued(m.Text) {
+			if g.cancellationCommandIssued(m) {
 				return "cancelling", nil
 			}
-			if g.helpRequested(m.Text) {
+			if g.helpRequested(m) {
 				return "insufficient", nil
 			}
 			if responseIsAffirmative(m.Text) {

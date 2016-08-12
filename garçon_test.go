@@ -63,32 +63,32 @@ func TestPossibleValidCommands(t *testing.T) {
 			"We'd like to order from the Chili's on 45th & Lamar",
 			"WE WOULD LIKE TO ORDER FROM THE CHILI'S ON 45TH AND LAMAR",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(abort|go away|leave|shut up))": []string{
+		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(abort|go away|leave|shut up))": []string{
 			"<@G4RC0NB0T>: abort",
 			"<@G4RC0NB0T>: go away",
 			"<@G4RC0NB0T>   LEAVE",
 			"<@G4RC0NB0T>, shut up",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(help|help me|help us)(!)?)": []string{
+		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(help|help me|help us)(!)?)": []string{
 			"<@G4RC0NB0T>: help me",
 			"<@G4RC0NB0T>: help!",
 			"<@G4RC0NB0T>   help us!",
 			"<@G4RC0NB0T>, help us",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
+		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
 			"<@G4RC0NB0T>: I would like the peach melba",
 			"<@G4RC0NB0T>:    I'd like the peach melba",
 			"<@G4RC0NB0T> I'll have the peach melba",
 			"<@G4RC0NB0T>, I'll have the poutine",
 			// "<@G4RC0NB0T>:I’ll have a Super Bol",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)(what does|what's) our order look like( so far)??)": []string{
+		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(what does|what's) our order look like( so far)??)": []string{
 			"<@G4RC0NB0T>, what does our order look like?",
 			"<@G4RC0NB0T>: what's our order look like?",
 			"<@G4RC0NB0T>, what does our order look like so far?",
 			"<@G4RC0NB0T>: what's our order look like so far?",
 		},
-		"(ok)?( |, )?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s+)I think (we are|we're) ready( now)?": []string{
+		"(ok)?( |, )?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)I think (we are|we're) ready( now)?": []string{
 			"ok, <@G4RC0NB0T>, I think we're ready",
 			"ok, <@G4RC0NB0T>: I think we're ready now",
 			"ok, <@G4RC0NB0T>   I think we are ready",
@@ -199,9 +199,7 @@ func TestGarconRespondsToOrderConfirmationRequest(t *testing.T) {
 	m.Text = "<@G4RC0NB0T> I'll have a peach melba"
 	_ = g.RespondToMessage(m)
 
-	_, m = returnGarconAndEmptyMessage()
-	g.Stage = "ordering"
-	m.Text = "ok, <@G4RC0NB0T>: I think we're ready now"
+	m = slack.Msg{Text: "ok, <@G4RC0NB0T>: I think we're ready now"}
 
 	messages := g.RespondToMessage(m)
 	assert.Equal(t, 3, len(messages))
