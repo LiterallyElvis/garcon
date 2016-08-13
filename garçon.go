@@ -100,12 +100,6 @@ func (g *Garcon) RespondToMessage(m slack.Msg) (responses []slack.OutgoingMessag
 	return
 }
 
-// CancellationCommandIssued returns whether or not the most recent command
-// is a show-stopping cancellation command directed at Garcon
-func (g Garcon) cancellationCommandIssued(m slack.Msg) bool {
-	return g.MessageAddressesGarcon(m) && stringFitsPattern(abortCommandPattern, m.Text)
-}
-
 // ItemAddedToOrder TODO: Document
 func (g Garcon) itemAddedToOrder(m slack.Msg) (orderPlaced bool) {
 	messageAddressesGarcon := g.MessageAddressesGarcon(m)
@@ -129,34 +123,26 @@ func (g Garcon) itemAddedToOrder(m slack.Msg) (orderPlaced bool) {
 	return
 }
 
+// TODO: Make these more generic
+// CancellationCommandIssued returns whether or not the most recent command
+// is a show-stopping cancellation command directed at Garcon
+func (g Garcon) cancellationCommandIssued(m slack.Msg) bool {
+	return g.MessageAddressesGarcon(m) && stringFitsPattern(abortCommandPattern, m.Text)
+}
+
 // OrderStatusCheckRequested TODO: Document
-func (g Garcon) orderStatusCheckRequested(m slack.Msg) (requested bool) {
-	if stringFitsPattern(orderStatusRequestPattern, m.Text) {
-		requested = true
-	}
-	return
+func (g Garcon) orderStatusCheckRequested(m slack.Msg) bool {
+	return stringFitsPattern(orderStatusRequestPattern, m.Text)
 }
 
 // ReadyToPlaceOrder TODO: Document
-func (g Garcon) readyToPlaceOrder(m slack.Msg) (ready bool) {
-	if stringFitsPattern(orderConfirmationRequestPattern, m.Text) {
-		ready = true
-	}
-	return
+func (g Garcon) readyToPlaceOrder(m slack.Msg) bool {
+	return stringFitsPattern(orderConfirmationRequestPattern, m.Text)
 }
 
 // HelpRequested TODO: Document
-func (g Garcon) helpRequested(m slack.Msg) (helpRequested bool) {
-	if stringFitsPattern(helpRequestPattern, m.Text) {
-		match, _ := findElementsInString(helpRequestPattern, []string{"user"}, m.Text)
-		user := match["user"]
-		if _, ok := g.Patrons[user]; ok {
-			if strings.ToLower(g.Patrons[user].Name) == strings.ToLower(g.SelfName) {
-				helpRequested = true
-			}
-		}
-	}
-	return
+func (g Garcon) helpRequested(m slack.Msg) bool {
+	return g.MessageAddressesGarcon(m) && stringFitsPattern(helpRequestPattern, m.Text)
 }
 
 func (g *Garcon) suggestHelpCommandResponse(m slack.Msg) []slack.OutgoingMessage {

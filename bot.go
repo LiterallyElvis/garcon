@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -11,6 +12,7 @@ var g *Garcon
 var sb *slack.Client
 var rtm *slack.RTM
 var allowedChannels []string
+var errorEncounteredDoingSetup bool
 
 func init() {
 	allowedChannels = []string{"food", "bot-tester"}
@@ -24,8 +26,14 @@ func init() {
 
 	users, err := sb.GetUsers()
 	if err != nil {
+		errorEncounteredDoingSetup = true
+		if fmt.Sprintf("%v", err) == "Post https://slack.com/api/users.list: dial tcp: lookup slack.com: no such host" {
+			log.Printf("No internet connectivity, skipping setup. :(")
+			return
+		}
 		log.Printf("Error retrieving users:\n%v\n", err)
 	}
+
 	g.Patrons = make(map[string]slack.User)
 	for _, u := range users {
 		g.Patrons[u.ID] = u
@@ -63,17 +71,19 @@ func handleMessage(m slack.Msg) {
 }
 
 func main() {
-	go rtm.ManageConnection()
-	for {
-		select {
-		case msg := <-rtm.IncomingEvents:
-			switch ev := msg.Data.(type) {
+	if !errorEncounteredDoingSetup {
+		go rtm.ManageConnection()
+		for {
+			select {
+			case msg := <-rtm.IncomingEvents:
+				switch ev := msg.Data.(type) {
 
-			case *slack.MessageEvent:
-				handleMessage(ev.Msg)
+				case *slack.MessageEvent:
+					handleMessage(ev.Msg)
 
-			case *slack.RTMError:
-				log.Printf("I encountered a Slack related error: %s\n", ev.Error())
+				case *slack.RTMError:
+					log.Printf("I encountered a Slack related error: %s\n", ev.Error())
+				}
 			}
 		}
 	}
