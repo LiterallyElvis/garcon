@@ -9,12 +9,11 @@ import (
 )
 
 func returnGarconAndEmptyMessage() (*Garcon, slack.Msg) {
-	dummyUserID := "LOLWTFBBQ"
+	dummyUserID := "L0LWTFBBQ"
 	g := NewGarcon()
 	g.SelfID = "G4RC0NB0T"
-	g.debug = true
 	g.Patrons = map[string]slack.User{
-		"LOLWTFBBQ": slack.User{
+		"L0LWTFBBQ": slack.User{
 			ID:   dummyUserID,
 			Name: "brainfart",
 		},
@@ -198,18 +197,19 @@ func TestGarconRespondsToOrderConfirmationRequest(t *testing.T) {
 	g, m := returnGarconAndEmptyMessage()
 
 	g.Stage = "ordering"
+	g.RequestedRestauraunt = "Gary's Racoon Hut"
 	m.Text = "<@G4RC0NB0T> I'll have a peach melba"
 	_ = g.RespondToMessage(m)
 
-	m = slack.Msg{Text: "ok, <@G4RC0NB0T>: I think we're ready now"}
-
+	m.Text = "ok, <@G4RC0NB0T>: I think we're ready now"
 	messages := g.RespondToMessage(m)
+
 	assert.Equal(t, 3, len(messages))
 	if !assert.Equal(t, 3, len(messages)) {
 		t.FailNow()
 	}
 	assert.Equal(t, "Alright, then!", messages[0].Text)
-	assert.Equal(t, "Here's what I have for your order from :\n```\nBrainfart: a peach melba\n```", messages[1].Text)
+	assert.Equal(t, "Here's what I have for your order from Gary's Racoon Hut:\n```\nBrainfart: a peach melba\n```", messages[1].Text)
 	assert.Equal(t, "Is that correct?", messages[2].Text)
 }
 

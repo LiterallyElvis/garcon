@@ -68,12 +68,17 @@ func (g *Garcon) Reset() {
 // RespondToMessage TODO: Document
 func (g *Garcon) RespondToMessage(m slack.Msg) (responses []slack.OutgoingMessage) {
 	if m.User == g.SelfID || len(m.User) == 0 {
+		log.Printf("I've received a message, but I can't respond to it because something's up with the user who sent it: '%v'", m.User)
 		return
 	}
 
+	if g.debug {
+		log.Printf("I've received this message:\n\t'%v'\nand I'm going to try to determine what type it is\n", m.Text)
+	}
+
 	mt, err := g.MessageTypeFuncs[g.Stage](m)
-	if err != nil {
-		log.Printf("I had trouble determining the message type of this message:\n\t%v\nwhen doing so, I encountered this error:\n\t%v\n", m.Text, err)
+	if err != nil && g.debug {
+		log.Printf("I encountered this error determining the message type of that message:\n\t%v\n", err)
 	}
 
 	if g.debug {
@@ -82,24 +87,17 @@ func (g *Garcon) RespondToMessage(m slack.Msg) (responses []slack.OutgoingMessag
 
 	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
 		responses = g.ReactionFuncs[g.Stage][mt](m)
-		log.Printf("I've decided to respond with the following responses:\n%v\n", responses)
+		if g.debug {
+			responseMessages := []string{}
+			for _, r := range responses {
+				responseMessages = append(responseMessages, r.Text)
+			}
+			debugResponses := strings.Join(responseMessages, "\n\t")
+			log.Printf("I've decided to respond with the following responses:\n\t%v\n", debugResponses)
+		}
 	}
 
 	return
-}
-
-func (g Garcon) logGarconInfo(m slack.Msg) {
-	fmt.Printf(`
-	m.Text               : %v
-    ======================
-	SelfName             : %v
-	SelfID               : %v
-	Stage                : %v
-	AllowedChannels      : %v
-	InterlocutorID       : %v
-	RequestedRestauraunt : %v
-	Order                : %v
-	`, m.Text, g.SelfName, g.SelfID, g.Stage, g.AllowedChannels, g.InterlocutorID, g.RequestedRestauraunt, g.Order)
 }
 
 // CancellationCommandIssued returns whether or not the most recent command
@@ -200,6 +198,10 @@ func (g *Garcon) validateRestaurant(m slack.Msg) []slack.OutgoingMessage {
 func (g *Garcon) validateOrder(m slack.Msg) []slack.OutgoingMessage {
 	g.Stage = "confirmation"
 
+	if g.debug {
+		log.Printf("I'm going to attempt to confirm the group order.")
+	}
+
 	return []slack.OutgoingMessage{
 		slack.OutgoingMessage{Channel: m.Channel, Text: "Alright, then!"},
 		g.orderStatusResponse(m)[0],
@@ -209,10 +211,10 @@ func (g *Garcon) validateOrder(m slack.Msg) []slack.OutgoingMessage {
 
 func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
 	matches, err := findElementsInString(orderPlacingPattern, []string{"item"}, m.Text)
-	item := matches["item"]
+	item := strings.TrimSpace(matches["item"])
 
 	if g.debug {
-		log.Printf("I've received an order for %v, and will be adding it to the group order", item)
+		log.Printf("I've received an order for '%v', and will be adding it to the group order", item)
 	}
 
 	if err != nil || len(item) == 0 {
@@ -220,10 +222,6 @@ func (g *Garcon) addItemToGroupOrder(m slack.Msg) []slack.OutgoingMessage {
 	}
 
 	g.Order[g.Patrons[m.User].Name] = item
-
-	log.Printf("\n\n\n")
-	g.logGarconInfo(m)
-	log.Printf("\n\n\n")
 
 	t := fmt.Sprintf("Okay @%v, I've got your order.", g.Patrons[m.User].Name)
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}

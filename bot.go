@@ -53,9 +53,6 @@ func makeIDToUserMap(in []slack.User) map[string]slack.User {
 
 func handleMessage(m slack.Msg) {
 	responses := g.RespondToMessage(m)
-	if g.debug {
-		g.logGarconInfo(m)
-	}
 	for _, response := range responses {
 		if len(response.Text) > 0 && sliceContainsString(response.Channel, g.AllowedChannels) {
 			rtm.SendMessage(rtm.NewOutgoingMessage(response.Text, response.Channel))
