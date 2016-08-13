@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/nlopes/slack"
 	"log"
 	"strings"
+
+	"github.com/nlopes/slack"
 )
 
 const (
@@ -72,16 +73,16 @@ func (g *Garcon) RespondToMessage(m slack.Msg) (responses []slack.OutgoingMessag
 
 	mt, err := g.MessageTypeFuncs[g.Stage](m)
 	if err != nil {
-		log.Printf("error determining message type: %v", err)
+		log.Printf("I had trouble determining the message type of this message:\n\t%v\nwhen doing so, I encountered this error:\n\t%v\n", m.Text, err)
 	}
 
 	if g.debug {
-		log.Printf("I've determined this message to be %v: %v", mt, m.Text)
+		log.Printf("I've determined this message:\n\t%v\nto be %v", m.Text, mt)
 	}
 
 	if _, ok := g.ReactionFuncs[g.Stage][mt]; ok {
 		responses = g.ReactionFuncs[g.Stage][mt](m)
-		log.Printf("Generated the following responses:\n%v\n", responses)
+		log.Printf("I've decided to respond with the following responses:\n%v\n", responses)
 	}
 
 	return

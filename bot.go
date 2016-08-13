@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"github.com/nlopes/slack"
 	"log"
 	"os"
+
+	"github.com/nlopes/slack"
 )
 
 var g *Garcon
@@ -43,15 +43,6 @@ func init() {
 	}
 }
 
-func logMessage(m slack.Msg) {
-	messageString := `
-		Channel: %v
-		User:    %v
-		Text:    %v
-	`
-	log.Printf(messageString, m.Channel, m.User, m.Text)
-}
-
 func makeIDToUserMap(in []slack.User) map[string]slack.User {
 	users := make(map[string]slack.User)
 	for _, u := range in {
@@ -69,7 +60,7 @@ func handleMessage(m slack.Msg) {
 		if len(response.Text) > 0 && sliceContainsString(response.Channel, g.AllowedChannels) {
 			rtm.SendMessage(rtm.NewOutgoingMessage(response.Text, response.Channel))
 		} else {
-			log.Printf("didn't send message because:\nlen(response.Text): %v\nresponse.Channel: %v\ng.AllowedChannels: %v\n", len(response.Text), response.Channel, g.AllowedChannels)
+			log.Printf("I couldn't send this message\n\t%v\n", response.Text)
 		}
 	}
 }
@@ -85,7 +76,7 @@ func main() {
 				handleMessage(ev.Msg)
 
 			case *slack.RTMError:
-				fmt.Printf("Error: %s\n", ev.Error())
+				log.Printf("I encountered a Slack related error: %s\n", ev.Error())
 			}
 		}
 	}

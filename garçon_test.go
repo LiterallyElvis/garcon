@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/nlopes/slack"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func returnGarconAndEmptyMessage() (*Garcon, slack.Msg) {
@@ -81,7 +82,7 @@ func TestPossibleValidCommands(t *testing.T) {
 			"<@G4RC0NB0T>:    I'd like the peach melba",
 			"<@G4RC0NB0T> I'll have the peach melba",
 			"<@G4RC0NB0T>, I'll have the poutine",
-			// "<@G4RC0NB0T>:I’ll have a Super Bol",
+			"<@G4RC0NB0T>:I’ll have a Super Bol",
 		},
 		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(what does|what's) our order look like( so far)??)": []string{
 			"<@G4RC0NB0T>, what does our order look like?",
