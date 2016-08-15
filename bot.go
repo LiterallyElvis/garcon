@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
+	"github.com/jasonmoo/ghostmates"
 	"github.com/nlopes/slack"
 )
 
@@ -15,14 +17,22 @@ var allowedChannels []string
 var errorEncounteredDoingSetup bool
 
 func init() {
-	allowedChannels = []string{"food", "bot-tester"}
+	allowedChannels = []string{"food", "bot-tester", "garcon_test"}
 	sb = slack.New(os.Getenv("GARCON_TOKEN"))
 	rtm = sb.NewRTM()
-	// sb.SetDebug(true)
 
 	g = NewGarcon()
 	g.SelfName = "garcon"
 	g.debug = true
+
+	customerID := os.Getenv("POSTMATES_CUSTOMER_ID")
+	sandboxKey := os.Getenv("POSTMATES_API_TOKEN")
+	duration, err := time.ParseDuration("1m")
+	if err != nil {
+		log.Fatal(err)
+	}
+	g.PostmatesClient = ghostmates.NewClient(customerID, sandboxKey, duration)
+	g.OrderDestination = ghostmates.NewDeliverySpot(os.Getenv("GARCON_DESTINATION_NAME"), os.Getenv("GARCON_DESTINATION_ADDRESS"), os.Getenv("GARCON_DESTINATION_NUMBER"))
 
 	users, err := sb.GetUsers()
 	if err != nil {

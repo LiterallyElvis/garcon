@@ -5,10 +5,12 @@ import (
 	"log"
 	"strings"
 
+	"github.com/jasonmoo/ghostmates"
 	"github.com/nlopes/slack"
 )
 
 const (
+	atGarconPattern                 = "((ok|okay)( |, )?)?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)"
 	orderInitiationPattern          = "(we'd|we would) (like to) (place an)? ?(order) (for|from)? ?(?P<restaurant>.*)"
 	abortCommandPattern             = "(abort|go away|leave|shut up)"
 	helpRequestPattern              = "(help|help me|help us)(!)?"
@@ -31,6 +33,9 @@ type Garcon struct {
 	MessageTypeFuncs     map[string]func(slack.Msg) (string, error)
 	ReactionFuncs        map[string]map[string]func(slack.Msg) []slack.OutgoingMessage
 	CommandExamples      map[string][]string
+
+	PostmatesClient  *ghostmates.Client
+	OrderDestination *ghostmates.DeliverySpot
 }
 
 // FindBotSlackID iterates over all the slack users and figures out what
@@ -46,7 +51,6 @@ func (g *Garcon) FindBotSlackID() {
 // MessageAddressesGarcon returns whether or not the message began with some variant
 // of "ok, @garcon"
 func (g *Garcon) MessageAddressesGarcon(m slack.Msg) bool {
-	atGarconPattern := "((ok|okay)( |, )?)?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)"
 	match, _ := findElementsInString(atGarconPattern, []string{"user"}, m.Text)
 	user := match["user"]
 	if _, ok := g.Patrons[user]; ok {
@@ -225,21 +229,44 @@ func (g *Garcon) orderIsIncorrect(m slack.Msg) []slack.OutgoingMessage {
 	}
 }
 
-// This pointered Gaston is anticipatory, though not yet necessary
 func (g *Garcon) placeOrder(m slack.Msg) []slack.OutgoingMessage {
+	// FIXME: This is dumb
+	restaurantAddress := ""
+	restaurantPhone := ""
+
 	t := "Okay, I'll send this order off!"
+
+	manifest := *ghostmates.NewManifest(g.createOrderString(), "Group Order")
+	from := *ghostmates.NewDeliverySpot(g.RequestedRestauraunt, restaurantAddress, restaurantPhone)
+	to := g.OrderDestination
+	quote, err := g.PostmatesClient.GetQuote(from.Address, to.Address)
+	if err != nil {
+		t = "I'm having some problems placing this order, please check the logs."
+		log.Println("Error creating quote")
+		log.Fatal(err)
+	}
+
+	err = g.PostmatesClient.CreateDelivery(&manifest, &from, to, quote)
+	if err != nil {
+		t = "I'm having some problems placing this order, please check the logs."
+		log.Println("Error creating delivery")
+		log.Fatal(err)
+	}
+
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
 
-func (g *Garcon) orderStatusResponse(m slack.Msg) []slack.OutgoingMessage {
-	// TODO: Make this a more generic function
+func (g *Garcon) createOrderString() string {
 	orders := ""
 	for user, order := range g.Order {
 		orders = fmt.Sprintf("%v%v: %v\n", orders, strings.Title(user), order)
 	}
-	orders = strings.TrimSpace(orders)
+	return strings.TrimSpace(orders)
+}
+
+func (g *Garcon) orderStatusResponse(m slack.Msg) []slack.OutgoingMessage {
 	statusTemplate := "Here's what I have for your order from %v:\n```\n%v\n```"
-	statusMessage := fmt.Sprintf(statusTemplate, g.RequestedRestauraunt, orders)
+	statusMessage := fmt.Sprintf(statusTemplate, g.RequestedRestauraunt, g.createOrderString())
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: statusMessage}}
 }
 

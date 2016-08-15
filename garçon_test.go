@@ -64,35 +64,39 @@ func TestPossibleValidCommands(t *testing.T) {
 			"We'd like to order from the Chili's on 45th & Lamar",
 			"WE WOULD LIKE TO ORDER FROM THE CHILI'S ON 45TH AND LAMAR",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(abort|go away|leave|shut up))": []string{
+		abortCommandPattern: []string{
 			"<@G4RC0NB0T>: abort",
 			"<@G4RC0NB0T>: go away",
+			"<@G4RC0NB0T>shut up",
 			"<@G4RC0NB0T>   LEAVE",
 			"<@G4RC0NB0T>, shut up",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(help|help me|help us)(!)?)": []string{
+		helpRequestPattern: []string{
 			"<@G4RC0NB0T>: help me",
 			"<@G4RC0NB0T>: help!",
 			"<@G4RC0NB0T>   help us!",
 			"<@G4RC0NB0T>, help us",
+			"<@G4RC0NB0T>help",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)((I would|I'd) like|I'll have) (?P<item>.*))": []string{
+		orderPlacingPattern: []string{
 			"<@G4RC0NB0T>: I would like the peach melba",
 			"<@G4RC0NB0T>:    I'd like the peach melba",
 			"<@G4RC0NB0T> I'll have the peach melba",
 			"<@G4RC0NB0T>, I'll have the poutine",
-			"<@G4RC0NB0T>:I’ll have a Super Bol",
+			"<@G4RC0NB0T>:I’ll have the poutine",
 		},
-		"(<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)(what does|what's) our order look like( so far)??)": []string{
+		orderStatusRequestPattern: []string{
 			"<@G4RC0NB0T>, what does our order look like?",
 			"<@G4RC0NB0T>: what's our order look like?",
 			"<@G4RC0NB0T>, what does our order look like so far?",
 			"<@G4RC0NB0T>: what's our order look like so far?",
+			"<@G4RC0NB0T>:what's our order look like so far?",
 		},
-		"(ok)?( |, )?<@(?P<user>[0-9A-Z]{9})>(:|,)?(\\s*?)I think (we are|we're) ready( now)?": []string{
-			"ok, <@G4RC0NB0T>, I think we're ready",
-			"ok, <@G4RC0NB0T>: I think we're ready now",
-			"ok, <@G4RC0NB0T>   I think we are ready",
+		orderConfirmationRequestPattern: []string{
+			"<@G4RC0NB0T>, I think we're ready",
+			"<@G4RC0NB0T>: I think we're ready now",
+			"<@G4RC0NB0T>I think we're ready now",
+			"<@G4RC0NB0T>   I think we are ready",
 		},
 	}
 
@@ -213,12 +217,12 @@ func TestGarconRespondsToOrderConfirmationRequest(t *testing.T) {
 	assert.Equal(t, "Is that correct?", messages[2].Text)
 }
 
-func TestGarconRespondsToOrderConfirmation(t *testing.T) {
-	g, m := returnGarconAndEmptyMessage()
-	g.Stage = "confirmation"
-	m.Text = "yep!"
+// func TestGarconRespondsToOrderConfirmation(t *testing.T) {
+// 	g, m := returnGarconAndEmptyMessage()
+// 	g.Stage = "confirmation"
+// 	m.Text = "yep!"
 
-	messages := g.RespondToMessage(m)
-	assert.Equal(t, 1, len(messages))
-	assert.Equal(t, "Okay, I'll send this order off!", messages[0].Text)
-}
+// 	messages := g.RespondToMessage(m)
+// 	assert.Equal(t, 1, len(messages))
+// 	assert.Equal(t, "Okay, I'll send this order off!", messages[0].Text)
+// }
