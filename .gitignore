@@ -30,3 +30,5 @@ vendor/*/
 # coverage
 cover.out
 cover.html
+
+run.sh

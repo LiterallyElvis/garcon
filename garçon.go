@@ -72,6 +72,7 @@ func (g *Garcon) Reset() {
 	g.InterlocutorID = ""
 	g.RequestedRestaurant = ""
 	g.Order = make(map[string]string)
+	g.ActualRestaurant = &maps.PlaceDetailsResult{}
 }
 
 // RespondToMessage TODO: Document
@@ -266,13 +267,14 @@ func (g *Garcon) orderIsIncorrect(m slack.Msg) []slack.OutgoingMessage {
 }
 
 func (g *Garcon) placeOrder(m slack.Msg) []slack.OutgoingMessage {
+	restaurantName := g.ActualRestaurant.Name
 	restaurantAddress := g.ActualRestaurant.Vicinity
 	restaurantPhone := g.ActualRestaurant.FormattedPhoneNumber
 
 	t := "Okay, I'll send this order off!"
 
 	manifest := *ghostmates.NewManifest(g.createOrderString(), "Group Order")
-	from := *ghostmates.NewDeliverySpot(g.RequestedRestaurant, restaurantAddress, restaurantPhone)
+	from := *ghostmates.NewDeliverySpot(restaurantName, restaurantAddress, restaurantPhone)
 	to := g.OrderDestination
 	quote, err := g.PostmatesClient.GetQuote(from.Address, to.Address)
 	if err != nil {
@@ -287,6 +289,7 @@ func (g *Garcon) placeOrder(m slack.Msg) []slack.OutgoingMessage {
 		log.Println("Error creating delivery")
 		log.Fatal(err)
 	}
+	g.Reset()
 
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
