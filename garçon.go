@@ -7,6 +7,8 @@ import (
 
 	"github.com/jasonmoo/ghostmates"
 	"github.com/nlopes/slack"
+	"golang.org/x/net/context"
+	"googlemaps.github.io/maps"
 )
 
 const (
@@ -21,21 +23,24 @@ const (
 
 // Garcon is our order taking bot! ヽ(゜∇゜)ノ
 type Garcon struct {
-	debug                bool
-	SelfName             string
-	SelfID               string
-	Stage                string
-	AllowedChannels      []string
-	InterlocutorID       string
-	RequestedRestauraunt string
-	Order                map[string]string
-	Patrons              map[string]slack.User
-	MessageTypeFuncs     map[string]func(slack.Msg) (string, error)
-	ReactionFuncs        map[string]map[string]func(slack.Msg) []slack.OutgoingMessage
-	CommandExamples      map[string][]string
+	debug               bool
+	SelfName            string
+	SelfID              string
+	Stage               string
+	AllowedChannels     []string
+	InterlocutorID      string
+	RequestedRestaurant string
+	ActualRestaurant    *maps.PlaceDetailsResult
+	Order               map[string]string
+	Patrons             map[string]slack.User
+	MessageTypeFuncs    map[string]func(slack.Msg) (string, error)
+	ReactionFuncs       map[string]map[string]func(slack.Msg) []slack.OutgoingMessage
+	CommandExamples     map[string][]string
 
 	PostmatesClient  *ghostmates.Client
 	OrderDestination *ghostmates.DeliverySpot
+
+	GoogleMapsClient *maps.Client
 }
 
 // FindBotSlackID iterates over all the slack users and figures out what
@@ -65,7 +70,7 @@ func (g *Garcon) MessageAddressesGarcon(m slack.Msg) bool {
 func (g *Garcon) Reset() {
 	g.Stage = "uninitiated"
 	g.InterlocutorID = ""
-	g.RequestedRestauraunt = ""
+	g.RequestedRestaurant = ""
 	g.Order = make(map[string]string)
 }
 
@@ -173,14 +178,45 @@ func (g *Garcon) helloGarcon(m slack.Msg) []slack.OutgoingMessage {
 
 func (g *Garcon) validateRestaurant(m slack.Msg) []slack.OutgoingMessage {
 	match, err := findElementsInString(orderInitiationPattern, []string{"restaurant"}, m.Text)
-	restaurant := match["restaurant"]
+	g.RequestedRestaurant = match["restaurant"]
 
-	if err != nil || len(restaurant) == 0 {
+	if err != nil || len(g.RequestedRestaurant) == 0 {
 		return g.suggestHelpCommandResponse(m)
 	}
-	t := fmt.Sprintf("Okay, what would everyone like from %v?", restaurant)
+
+	gr := &maps.GeocodingRequest{Address: g.OrderDestination.Address}
+	gresp, err := g.GoogleMapsClient.Geocode(context.TODO(), gr)
+	if err != nil {
+		log.Printf("fatal error geocoding Location: %s", err)
+		return g.suggestHelpCommandResponse(m)
+	}
+
+	nsr := &maps.NearbySearchRequest{
+		Location: &gresp[0].Geometry.Location,
+		Radius:   10000, // In meters, this is completely arbitrary
+		Keyword:  g.RequestedRestaurant,
+		Name:     g.RequestedRestaurant,
+		OpenNow:  true,
+		MinPrice: "0",
+		MaxPrice: "4",
+		Type:     "restaurant",
+	}
+
+	places, err := g.GoogleMapsClient.NearbySearch(context.TODO(), nsr)
+	log.Printf("I was able to find %v restaurants matching the requested name.", len(places.Results))
+	if err != nil {
+		log.Printf("fatal error conducting search: %s", err)
+		em := "I'm sorry, I can't find a restaurant like that."
+		return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: em}}
+	}
+	pdr := &maps.PlaceDetailsRequest{PlaceID: places.Results[0].PlaceID}
+	place, err := g.GoogleMapsClient.PlaceDetails(context.TODO(), pdr)
+
+	g.ActualRestaurant = &place
+	log.Printf("I decided to go with the following restaurant:\n%v\n%v\n", g.ActualRestaurant.Name, g.ActualRestaurant.Vicinity)
+
+	t := fmt.Sprintf("Okay, what would everyone like from %v?", g.ActualRestaurant.Name)
 	g.Stage = "ordering"
-	g.RequestedRestauraunt = restaurant
 
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: t}}
 }
@@ -221,7 +257,7 @@ func (g *Garcon) orderIsIncorrect(m slack.Msg) []slack.OutgoingMessage {
 	t := fmt.Sprintf("Okay, I'll start over.")
 
 	g.Stage = "ordering"
-	g.RequestedRestauraunt = ""
+	g.RequestedRestaurant = ""
 	g.Order = make(map[string]string)
 
 	return []slack.OutgoingMessage{
@@ -230,14 +266,13 @@ func (g *Garcon) orderIsIncorrect(m slack.Msg) []slack.OutgoingMessage {
 }
 
 func (g *Garcon) placeOrder(m slack.Msg) []slack.OutgoingMessage {
-	// FIXME: This is dumb
-	restaurantAddress := ""
-	restaurantPhone := ""
+	restaurantAddress := g.ActualRestaurant.Vicinity
+	restaurantPhone := g.ActualRestaurant.FormattedPhoneNumber
 
 	t := "Okay, I'll send this order off!"
 
 	manifest := *ghostmates.NewManifest(g.createOrderString(), "Group Order")
-	from := *ghostmates.NewDeliverySpot(g.RequestedRestauraunt, restaurantAddress, restaurantPhone)
+	from := *ghostmates.NewDeliverySpot(g.RequestedRestaurant, restaurantAddress, restaurantPhone)
 	to := g.OrderDestination
 	quote, err := g.PostmatesClient.GetQuote(from.Address, to.Address)
 	if err != nil {
@@ -266,7 +301,7 @@ func (g *Garcon) createOrderString() string {
 
 func (g *Garcon) orderStatusResponse(m slack.Msg) []slack.OutgoingMessage {
 	statusTemplate := "Here's what I have for your order from %v:\n```\n%v\n```"
-	statusMessage := fmt.Sprintf(statusTemplate, g.RequestedRestauraunt, g.createOrderString())
+	statusMessage := fmt.Sprintf(statusTemplate, g.RequestedRestaurant, g.createOrderString())
 	return []slack.OutgoingMessage{slack.OutgoingMessage{Channel: m.Channel, Text: statusMessage}}
 }
 
@@ -313,7 +348,7 @@ func NewGarcon() *Garcon {
 			if g.cancellationCommandIssued(m) {
 				return "cancelling", nil
 			}
-			if strings.ToLower(m.Text) == "oh, garçon?" || strings.ToLower(m.Text) == "oh, @garcon?" {
+			if strings.ToLower(m.Text) == "oh, garçon?" || strings.ToLower(m.Text) == "oh, garcon?" {
 				return "affirmative", nil
 			}
 			return "irrelevant", nil
@@ -325,8 +360,7 @@ func NewGarcon() *Garcon {
 			if g.helpRequested(m) {
 				return "insufficient", nil
 			}
-			negative := responseIsNegative(m.Text)
-			if negative || m.User != g.InterlocutorID {
+			if responseIsNegative(m.Text) || m.User != g.InterlocutorID {
 				return "negative", nil
 			}
 			if stringFitsPattern(orderInitiationPattern, m.Text) {

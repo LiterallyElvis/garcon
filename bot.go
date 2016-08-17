@@ -8,6 +8,7 @@ import (
 
 	"github.com/jasonmoo/ghostmates"
 	"github.com/nlopes/slack"
+	"googlemaps.github.io/maps"
 )
 
 var g *Garcon
@@ -24,15 +25,6 @@ func init() {
 	g = NewGarcon()
 	g.SelfName = "garcon"
 	g.debug = true
-
-	customerID := os.Getenv("POSTMATES_CUSTOMER_ID")
-	sandboxKey := os.Getenv("POSTMATES_API_TOKEN")
-	duration, err := time.ParseDuration("1m")
-	if err != nil {
-		log.Fatal(err)
-	}
-	g.PostmatesClient = ghostmates.NewClient(customerID, sandboxKey, duration)
-	g.OrderDestination = ghostmates.NewDeliverySpot(os.Getenv("GARCON_DESTINATION_NAME"), os.Getenv("GARCON_DESTINATION_ADDRESS"), os.Getenv("GARCON_DESTINATION_NUMBER"))
 
 	users, err := sb.GetUsers()
 	if err != nil {
@@ -59,6 +51,22 @@ func init() {
 			g.AllowedChannels = append(g.AllowedChannels, ch.ID)
 		}
 	}
+
+	customerID := os.Getenv("POSTMATES_CUSTOMER_ID")
+	sandboxKey := os.Getenv("POSTMATES_API_TOKEN")
+	duration, err := time.ParseDuration("1m")
+	if err != nil {
+		log.Fatal(err)
+	}
+	g.PostmatesClient = ghostmates.NewClient(customerID, sandboxKey, duration)
+	g.OrderDestination = ghostmates.NewDeliverySpot(os.Getenv("GARCON_DESTINATION_NAME"), os.Getenv("GARCON_DESTINATION_ADDRESS"), os.Getenv("GARCON_DESTINATION_NUMBER"))
+
+	apiKey := os.Getenv("GOOGLE_MAPS_API_KEY")
+	c, err := maps.NewClient(maps.WithAPIKey(apiKey))
+	if err != nil {
+		log.Fatalf("fatal error establishing client: %s", err)
+	}
+	g.GoogleMapsClient = c
 }
 
 func makeIDToUserMap(in []slack.User) map[string]slack.User {
