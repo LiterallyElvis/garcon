@@ -54,12 +54,12 @@ func sliceContainsString(s string, a []string) bool {
 }
 
 func responseIsAffirmative(response string) bool {
-	affirmatives := []string{"yes", "yup", "yep", "sure", "ok", "si", "oui"}
+	affirmatives := []string{"yes", "yup", "yep", "sure", "si", "oui", "yuppers", "you betcha"}
 	return sliceContainsString(response, affirmatives)
 }
 
 func responseIsNegative(response string) bool {
-	negatives := []string{"no", "nope", "cancel", "neup"}
+	negatives := []string{"no", "nope", "cancel", "neup", "negative", "negatory"}
 	return sliceContainsString(response, negatives)
 }
 
